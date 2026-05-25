@@ -60,6 +60,30 @@
             <div class="col-md-10 p-4">
                 <div id="seccion-dashboard">
                     <h2 class="mb-4">📊 Dashboard</h2>
+                    <div class="row mb-3">
+                        <div class="col-md-3">
+                            <select id="filtroMes" class="form-select" onchange="cargarDashboard()">
+                                <option value="1">Enero</option>
+                                <option value="2">Febrero</option>
+                                <option value="3">Marzo</option>
+                                <option value="4">Abril</option>
+                                <option value="5">Mayo</option>
+                                <option value="6">Junio</option>
+                                <option value="7">Julio</option>
+                                <option value="8">Agosto</option>
+                                <option value="9">Septiembre</option>
+                                <option value="10">Octubre</option>
+                                <option value="11">Noviembre</option>
+                                <option value="12">Diciembre</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <button class="btn btn-success me-2" onclick="exportarReservas()">📥 Exportar Reservas</button>
+                        </div>
+                        <div class="col-md-3">
+                            <button class="btn btn-info" onclick="exportarIngresos()">💰 Exportar Ingresos</button>
+                        </div>
+                    </div>
                     <div class="row g-3">
                         <div class="col-6 col-md-3"><div class="card stat-card bg-success"><div class="card-body"><h6>HABITACIONES</h6><h2 id="total-habs">-</h2></div></div></div>
                         <div class="col-6 col-md-3"><div class="card stat-card bg-danger"><div class="card-body"><h6>OCUPADAS HOY</h6><h2 id="ocupadas-hoy">-</h2></div></div></div>
@@ -173,6 +197,9 @@
         }
         
         function cargarDashboard() {
+            var mes = document.getElementById('filtroMes').value;
+            var año = new Date().getFullYear();
+            
             fetch('/api/habitaciones').then(r => r.json()).then(d => { document.getElementById('total-habs').textContent = d.length; });
             fetch('/api/calendario-completo').then(r => r.json()).then(d => {
                 var hoy = new Date().toISOString().split('T')[0], ocupadas = 0;
@@ -182,9 +209,21 @@
                 document.getElementById('ocupadas-hoy').textContent = ocupadas;
             });
             fetch('/api/reservas-pendientes').then(r => r.json()).then(d => { document.getElementById('pendientes-pago').textContent = d.length; });
-            fetch('/api/ingresos-mes').then(r => r.json()).then(d => {
+            fetch('/api/ingresos-mes?mes=' + mes + '&año=' + año).then(r => r.json()).then(d => {
                 document.getElementById('ingresos-mes').textContent = '$' + d.total;
             });
+        }
+        
+        function exportarReservas() {
+            var mes = document.getElementById('filtroMes').value;
+            var año = new Date().getFullYear();
+            window.open('/api/exportar-reservas?mes=' + mes + '&año=' + año, '_blank');
+        }
+        
+        function exportarIngresos() {
+            var mes = document.getElementById('filtroMes').value;
+            var año = new Date().getFullYear();
+            window.open('/api/exportar-ingresos?mes=' + mes + '&año=' + año, '_blank');
         }
         
         function mesAnterior() { mesActual--; if (mesActual < 0) { mesActual = 11; añoActual--; } cargarCalendario(); }
@@ -361,6 +400,8 @@
         
         function validarPago(id, accion) { if (confirm('¿' + (accion === 'confirmada' ? 'Aprobar' : 'Rechazar') + '?')) fetch('/api/validar-pago/' + id, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({accion: accion}) }).then(function() { cargarPagos(); }); }
         
+        // Seleccionar mes actual
+        document.getElementById('filtroMes').value = new Date().getMonth() + 1;
         cargarDashboard();
     </script>
 </body>

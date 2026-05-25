@@ -1,11 +1,13 @@
 import os
-from flask import Flask, render_template, request, jsonify, redirect, url_for
+from flask import Flask, render_template, request, jsonify, redirect, url_for, Response
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from datetime import datetime, timedelta
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 import json
+import csv
+from io import StringIO
 
 basedir = os.path.abspath(os.path.dirname(__file__))
 
@@ -471,12 +473,14 @@ def todas_reservas():
 @app.route('/api/ingresos-mes')
 @login_required
 def ingresos_mes():
-    hoy = datetime.now()
-    inicio_mes = datetime(hoy.year, hoy.month, 1).date()
-    if hoy.month == 12:
-        fin_mes = datetime(hoy.year + 1, 1, 1).date() - timedelta(days=1)
+    mes = int(request.args.get('mes', datetime.now().month))
+    año = int(request.args.get('año', datetime.now().year))
+    
+    inicio_mes = datetime(año, mes, 1).date()
+    if mes == 12:
+        fin_mes = datetime(año + 1, 1, 1).date() - timedelta(days=1)
     else:
-        fin_mes = datetime(hoy.year, hoy.month + 1, 1).date() - timedelta(days=1)
+        fin_mes = datetime(año, mes + 1, 1).date() - timedelta(days=1)
     
     reservas = Reserva.query.filter(
         Reserva.posada_id == current_user.posada_id,
@@ -489,8 +493,109 @@ def ingresos_mes():
     
     return jsonify({
         'total': round(total_ingresos, 2),
-        'cantidad': len(reservas)
+        'cantidad': len(reservas),
+        'mes': mes,
+        'año': año
     })
+
+@app.route('/api/exportar-reservas')
+@login_required
+def exportar_reservas():
+    mes = int(request.args.get('mes', datetime.now().month))
+    año = int(request.args.get('año', datetime.now().year))
+    
+    inicio_mes = datetime(año, mes, 1).date()
+    if mes == 12:
+        fin_mes = datetime(año + 1, 1, 1).date() - timedelta(days=1)
+    else:
+        fin_mes = datetime(año, mes + 1, 1).date() - timedelta(days=1)
+    
+    reservas = Reserva.query.filter(
+        Reserva.posada_id == current_user.posada_id,
+        Reserva.fecha_entrada >= inicio_mes,
+        Reserva.fecha_entrada <= fin_mes
+    ).order_by(Reserva.fecha_entrada).all()
+    
+    output = StringIO()
+    writer = csv.writer(output)
+    writer.writerow(['ID Reserva', 'Cliente', 'Teléfono', 'Email', 'Habitación', 'Tipo Hab', 'Check-in', 'Check-out', 'Noches', 'Adultos', 'Niños', 'Total USD', 'Estado', 'Método Pago', 'Fecha Reserva'])
+    
+    for r in reservas:
+        hab = db.session.get(Habitacion, r.habitacion_id)
+        noches = (r.fecha_salida - r.fecha_entrada).days if r.fecha_entrada and r.fecha_salida else 0
+        writer.writerow([
+            r.id,
+            r.cliente_nombre,
+            r.cliente_telefono,
+            r.cliente_email,
+            hab.nombre if hab else 'N/A',
+            hab.tipo if hab else 'N/A',
+            str(r.fecha_entrada),
+            str(r.fecha_salida),
+            noches,
+            r.adultos,
+            r.ninos,
+            r.total,
+            r.estado,
+            r.metodo_pago or '-',
+            r.fecha_reserva.strftime('%d/%m/%Y') if r.fecha_reserva else ''
+        ])
+    
+    output.seek(0)
+    return Response(
+        output.getvalue(),
+        mimetype='text/csv',
+        headers={'Content-Disposition': f'attachment;filename=Reservas_{mes}_{año}.csv'}
+    )
+
+@app.route('/api/exportar-ingresos')
+@login_required
+def exportar_ingresos():
+    mes = int(request.args.get('mes', datetime.now().month))
+    año = int(request.args.get('año', datetime.now().year))
+    
+    inicio_mes = datetime(año, mes, 1).date()
+    if mes == 12:
+        fin_mes = datetime(año + 1, 1, 1).date() - timedelta(days=1)
+    else:
+        fin_mes = datetime(año, mes + 1, 1).date() - timedelta(days=1)
+    
+    reservas = Reserva.query.filter(
+        Reserva.posada_id == current_user.posada_id,
+        Reserva.estado == 'confirmada',
+        Reserva.fecha_reserva >= inicio_mes,
+        Reserva.fecha_reserva <= fin_mes
+    ).order_by(Reserva.fecha_reserva).all()
+    
+    output = StringIO()
+    writer = csv.writer(output)
+    writer.writerow(['ID', 'Cliente', 'Teléfono', 'Habitación', 'Check-in', 'Check-out', 'Total USD', 'Método Pago', 'Fecha Pago'])
+    
+    total_general = 0
+    for r in reservas:
+        hab = db.session.get(Habitacion, r.habitacion_id)
+        writer.writerow([
+            r.id,
+            r.cliente_nombre,
+            r.cliente_telefono,
+            hab.nombre if hab else 'N/A',
+            str(r.fecha_entrada),
+            str(r.fecha_salida),
+            r.total,
+            r.metodo_pago or '-',
+            r.fecha_reserva.strftime('%d/%m/%Y') if r.fecha_reserva else ''
+        ])
+        total_general += r.total
+    
+    writer.writerow([])
+    writer.writerow(['', '', '', '', '', '', 'TOTAL:', '', round(total_general, 2)])
+    
+    output.seek(0)
+    return Response(
+        output.getvalue(),
+        mimetype='text/csv',
+        headers={'Content-Disposition': f'attachment;filename=Ingresos_{mes}_{año}.csv'}
+    )
 
 @app.route('/api/validar-pago/<int:reserva_id>', methods=['POST'])
 @login_required
