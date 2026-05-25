@@ -427,34 +427,27 @@ def validar_pago(reserva_id):
     return jsonify({'error': 'No encontrada'}), 404
 
 with app.app_context():
-    db.drop_all()
     db.create_all()
-    
-    # Crear posada
-    posada = Posada(nombre='Demo-Posadas', direccion='Sistema de gestión de prueba')
-    db.session.add(posada)
-    db.session.commit()
-    
-    # Crear admin
-    admin = Usuario(username='admin', password_hash=generate_password_hash('admin123'),
-                    rol='admin', posada_id=posada.id)
-    db.session.add(admin)
-    db.session.commit()
-    
-    # Crear habitaciones
-    habs = [
-        ('Deluxe Vista al Mar', 'matrimonial', 2, '1 cama King', 80),
-        ('Familiar Premium', 'familiar', 4, '2 camas Queen', 120),
-        ('Economica Standard', 'triple', 3, '1 matrimonial + 1 individual', 50),
-    ]
-    for nombre, tipo, cap, camas, precio in habs:
-        db.session.add(Habitacion(nombre=nombre, tipo=tipo, capacidad=cap,
-                                  camas=camas, precio_base=precio,
-                                  descripcion='Hermosa habitacion', posada_id=posada.id))
-    db.session.commit()
-    print("✅ Base de datos recreada con habitaciones")
-    print("👤 admin | 🔑 admin123")
-
+    if not Usuario.query.filter_by(username='admin').first():
+        posada = Posada(nombre='Demo-Posadas', direccion='Sistema de gestión de prueba')
+        db.session.add(posada)
+        db.session.commit()
+        admin = Usuario(username='admin', password_hash=generate_password_hash('admin123'),
+                        rol='admin', posada_id=posada.id)
+        db.session.add(admin)
+        db.session.commit()
+        habs = [
+            ('Deluxe Vista al Mar', 'matrimonial', 2, '1 cama King', 80),
+            ('Familiar Premium', 'familiar', 4, '2 camas Queen', 120),
+            ('Economica Standard', 'triple', 3, '1 matrimonial + 1 individual', 50),
+        ]
+        for nombre, tipo, cap, camas, precio in habs:
+            db.session.add(Habitacion(nombre=nombre, tipo=tipo, capacidad=cap,
+                                      camas=camas, precio_base=precio,
+                                      descripcion='Hermosa habitacion', posada_id=posada.id))
+        db.session.commit()
+        print("✅ Base de datos creada")
+        print("👤 admin | 🔑 admin123")
 if __name__ == '__main__':
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
     app.run(debug=True, port=5000)
