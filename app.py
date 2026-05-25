@@ -391,6 +391,7 @@ def validar_pago(reserva_id):
     return jsonify({'error': 'No encontrada'}), 404
 
 with app.app_context():
+    db.drop_all()
     db.create_all()
     if not Usuario.query.filter_by(username='admin').first():
         posada = Posada(nombre='Demo-Posadas', direccion='Sistema de gestión de prueba')
