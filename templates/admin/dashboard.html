@@ -170,7 +170,9 @@
             fetch('/api/habitaciones').then(r => r.json()).then(d => { document.getElementById('total-habs').textContent = d.length; });
             fetch('/api/calendario-completo').then(r => r.json()).then(d => {
                 var hoy = new Date().toISOString().split('T')[0], ocupadas = 0;
-                if (d.reservas) for (var k in d.reservas) if (d.reservas[k].includes(hoy)) ocupadas++;
+                if (d.ocupacion_por_dia && d.ocupacion_por_dia[hoy]) {
+                    ocupadas = d.ocupacion_por_dia[hoy].ocupadas;
+                }
                 document.getElementById('ocupadas-hoy').textContent = ocupadas;
             });
             fetch('/api/reservas-pendientes').then(r => r.json()).then(d => { document.getElementById('pendientes-pago').textContent = d.length; });
@@ -186,11 +188,28 @@
             fetch('/api/calendario-completo?mes=' + (mesActual + 1) + '&año=' + añoActual).then(r => r.json()).then(d => {
                 var html = '<div class="calendario-grid">';
                 ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'].forEach(function(dia) { html += '<div class="calendario-header">' + dia + '</div>'; });
+                
                 for (var i = 0; i < d.primer_dia_semana; i++) html += '<div class="calendario-dia vacio"></div>';
+                
                 for (var dia = 1; dia <= d.total_dias; dia++) {
-                    var fechaStr = añoActual + '-' + String(mesActual + 1).padStart(2, '0') + '-' + String(dia).padStart(2, '0'), ocupado = false;
-                    for (var k in d.reservas) if (d.reservas[k].includes(fechaStr)) { ocupado = true; break; }
-                    html += '<div class="calendario-dia ' + (ocupado ? 'ocupado' : 'libre') + '"><span>' + dia + '</span><br><small>' + (ocupado ? '🔴' : '🟢') + '</small></div>';
+                    var fechaStr = añoActual + '-' + String(mesActual + 1).padStart(2, '0') + '-' + String(dia).padStart(2, '0');
+                    var ocupacion = d.ocupacion_por_dia[fechaStr];
+                    
+                    if (ocupacion) {
+                        var disponibles = ocupacion.disponibles;
+                        var ocupadas = ocupacion.ocupadas;
+                        var total = ocupacion.total;
+                        
+                        if (ocupadas === 0) {
+                            html += '<div class="calendario-dia libre"><span>' + dia + '</span><br><small>🟢 ' + disponibles + '/' + total + '</small></div>';
+                        } else if (disponibles === 0) {
+                            html += '<div class="calendario-dia ocupado"><span>' + dia + '</span><br><small>🔴 0/' + total + '</small></div>';
+                        } else {
+                            html += '<div class="calendario-dia" style="background: #fff3e0; color: #e65100; font-weight: 500;"><span>' + dia + '</span><br><small>🟠 ' + disponibles + '/' + total + '</small></div>';
+                        }
+                    } else {
+                        html += '<div class="calendario-dia libre"><span>' + dia + '</span><br><small>🟢 -</small></div>';
+                    }
                 }
                 html += '</div>';
                 document.getElementById('calendario-content').innerHTML = html;

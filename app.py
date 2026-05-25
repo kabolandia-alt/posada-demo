@@ -370,14 +370,33 @@ def calendario_completo():
         fin = datetime(año + 1, 1, 1).date() - timedelta(days=1)
     else:
         fin = datetime(año, mes + 1, 1).date() - timedelta(days=1)
+    
     total_dias = fin.day
     primer_dia_semana = (inicio.weekday() + 1) % 7
+    
+    total_habitaciones = Habitacion.query.filter_by(posada_id=current_user.posada_id).count()
+    
     reservas = Reserva.query.filter(
         Reserva.posada_id == current_user.posada_id,
         Reserva.estado.in_(['confirmada', 'pago_reportado']),
         Reserva.fecha_entrada <= fin,
         Reserva.fecha_salida >= inicio
     ).all()
+    
+    ocupacion_por_dia = {}
+    for dia in range(1, total_dias + 1):
+        fecha = datetime(año, mes, dia).date()
+        fecha_str = fecha.strftime('%Y-%m-%d')
+        ocupadas = 0
+        for r in reservas:
+            if r.fecha_entrada <= fecha <= r.fecha_salida:
+                ocupadas += 1
+        ocupacion_por_dia[fecha_str] = {
+            'ocupadas': ocupadas,
+            'disponibles': total_habitaciones - ocupadas,
+            'total': total_habitaciones
+        }
+    
     habitaciones = Habitacion.query.filter_by(posada_id=current_user.posada_id).all()
     reservas_por_hab = {}
     for hab in habitaciones:
@@ -389,10 +408,14 @@ def calendario_completo():
                     dias_ocupados.append(fecha.strftime('%Y-%m-%d'))
                     fecha += timedelta(days=1)
         reservas_por_hab[hab.id] = dias_ocupados
+    
     return jsonify({
         'total_dias': total_dias,
         'primer_dia_semana': primer_dia_semana,
-        'mes': mes, 'año': año,
+        'mes': mes,
+        'año': año,
+        'total_habitaciones': total_habitaciones,
+        'ocupacion_por_dia': ocupacion_por_dia,
         'reservas': reservas_por_hab,
         'habitaciones': [{'id': h.id, 'nombre': h.nombre, 'tipo': h.tipo} for h in habitaciones]
     })
