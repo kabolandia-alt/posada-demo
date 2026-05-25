@@ -275,7 +275,34 @@
             fetch('/api/reservas-pendientes').then(r => r.json()).then(d => {
                 var html = '';
                 if (d.length === 0) html = '<div class="alert alert-info">✅ No hay pagos pendientes</div>';
-                else d.forEach(function(r) { html += '<div class="pago-pendiente"><div class="row"><div class="col-md-6"><strong>' + r.cliente_nombre + '</strong><p>📞 ' + r.cliente_telefono + '</p><small>📅 ' + r.fecha_entrada + ' → ' + r.fecha_salida + '</small></div><div class="col-md-6 text-end"><h4 class="text-success">$' + r.total + '</h4><button class="btn btn-success btn-sm" onclick="validarPago(' + r.id + ', \'confirmada\')">✅ Aprobar</button> <button class="btn btn-danger btn-sm" onclick="validarPago(' + r.id + ', \'cancelada\')">❌ Rechazar</button></div></div></div>'; });
+                else d.forEach(function(r) { 
+                    let huespedesHTML = '';
+                    if (r.datos_huespedes) {
+                        try {
+                            const huespedes = JSON.parse(r.datos_huespedes);
+                            huespedes.forEach((h, i) => {
+                                huespedesHTML += `<small>👤 ${h.nombre} - ${h.tipo_documento}: ${h.documento} (${h.tipo})</small><br>`;
+                            });
+                        } catch(e) {}
+                    }
+                    html += `<div class="pago-pendiente">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <strong>${r.cliente_nombre}</strong>
+                                <p>📞 ${r.cliente_telefono} | 📧 ${r.cliente_email || 'N/A'}</p>
+                                <small>📅 ${r.fecha_entrada} → ${r.fecha_salida}</small>
+                                <div class="mt-2">${huespedesHTML}</div>
+                                ${r.comprobante ? `<a href="/static/uploads/${r.comprobante}" target="_blank" class="btn btn-sm btn-info mt-1">📎 Ver Comprobante</a>` : ''}
+                            </div>
+                            <div class="col-md-6 text-end">
+                                <h4 class="text-success">$${r.total}</h4>
+                                <p><span class="badge bg-primary">${r.metodo_pago || 'Sin método'}</span></p>
+                                <button class="btn btn-success btn-sm" onclick="validarPago(${r.id}, 'confirmada')">✅ Aprobar</button>
+                                <button class="btn btn-danger btn-sm" onclick="validarPago(${r.id}, 'cancelada')">❌ Rechazar</button>
+                            </div>
+                        </div>
+                    </div>`;
+                });
                 document.getElementById('lista-pagos').innerHTML = html;
             });
         }

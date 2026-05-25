@@ -10,7 +10,7 @@ import json
 basedir = os.path.abspath(os.path.dirname(__file__))
 
 app = Flask(__name__, template_folder=os.path.join(basedir, 'templates'))
-app.config['SECRET_KEY'] = 'clave_super_secreta_2024'
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'clave_super_secreta_2024')
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'posada.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['UPLOAD_FOLDER'] = os.path.join(basedir, 'static', 'uploads')
@@ -65,6 +65,7 @@ class Reserva(db.Model):
     estado = db.Column(db.String(20), default='pendiente')
     metodo_pago = db.Column(db.String(50))
     comprobante = db.Column(db.String(200))
+    datos_huespedes = db.Column(db.Text)
     habitacion_id = db.Column(db.Integer, db.ForeignKey('habitacion.id'))
     posada_id = db.Column(db.Integer, db.ForeignKey('posada.id'))
     fecha_reserva = db.Column(db.DateTime, default=datetime.utcnow)
@@ -152,7 +153,6 @@ def actualizar_habitacion(id):
     if not hab or hab.posada_id != current_user.posada_id:
         return jsonify({'error': 'No encontrada'}), 404
     
-    # Determinar si vienen datos como JSON o FormData
     if request.is_json:
         data = request.get_json()
         if 'nombre' in data: hab.nombre = data['nombre']
@@ -163,7 +163,6 @@ def actualizar_habitacion(id):
         if 'descripcion' in data: hab.descripcion = data['descripcion']
         if 'servicios' in data: hab.servicios = data['servicios']
     else:
-        # Procesar FormData
         if 'nombre' in request.form: hab.nombre = request.form['nombre']
         if 'tipo' in request.form: hab.tipo = request.form['tipo']
         if 'capacidad' in request.form: hab.capacidad = int(request.form['capacidad'])
@@ -172,16 +171,13 @@ def actualizar_habitacion(id):
         if 'descripcion' in request.form: hab.descripcion = request.form['descripcion']
         if 'servicios' in request.form: hab.servicios = request.form['servicios']
         
-        # Procesar nueva imagen si se subió
         if 'imagen' in request.files:
             file = request.files['imagen']
             if file and file.filename:
-                # Borrar imagen anterior si existe
                 if hab.imagen:
                     old_path = os.path.join(app.config['UPLOAD_FOLDER'], hab.imagen)
                     if os.path.exists(old_path):
                         os.remove(old_path)
-                # Guardar nueva imagen
                 filename = secure_filename(file.filename)
                 filename = f"{datetime.now().strftime('%Y%m%d%H%M%S')}_{filename}"
                 file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
@@ -241,13 +237,18 @@ def verificar_disponibilidad(posada_id):
 
 @app.route('/api/reservas', methods=['POST'])
 def crear_reserva():
-    data = request.json
+    if request.is_json:
+        data = request.get_json()
+    else:
+        data = request.form.to_dict()
+    
     entrada = datetime.strptime(data['fecha_entrada'], '%Y-%m-%d').date()
     salida = datetime.strptime(data['fecha_salida'], '%Y-%m-%d').date()
     dias = (salida - entrada).days
-    hab = db.session.get(Habitacion, data['habitacion_id'])
+    hab = db.session.get(Habitacion, int(data['habitacion_id']))
     if not hab:
-        return jsonify({'error': 'No encontrada'}), 404
+        return jsonify({'error': 'Habitacion no encontrada'}), 404
+    
     total = hab.precio_base * dias
     fecha = entrada
     while fecha < salida:
@@ -259,14 +260,28 @@ def crear_reserva():
         if tarifa:
             total += tarifa.multiplicador
         fecha += timedelta(days=1)
+    
+    comprobante_filename = None
+    if 'comprobante' in request.files:
+        file = request.files['comprobante']
+        if file.filename:
+            filename = secure_filename(file.filename)
+            filename = f"pago_{datetime.now().strftime('%Y%m%d%H%M%S')}_{filename}"
+            file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+            comprobante_filename = filename
+    
     reserva = Reserva(
-        cliente_nombre=data['cliente_nombre'],
-        cliente_cedula=data['cliente_cedula'],
-        cliente_telefono=data['cliente_telefono'],
+        cliente_nombre=data.get('cliente_nombre', ''),
+        cliente_cedula=data.get('cliente_cedula', ''),
+        cliente_telefono=data.get('cliente_telefono', ''),
         cliente_email=data.get('cliente_email', ''),
         fecha_entrada=entrada, fecha_salida=salida,
-        adultos=data.get('adultos', 1), ninos=data.get('ninos', 0),
-        total=round(total, 2), habitacion_id=hab.id, posada_id=hab.posada_id
+        adultos=int(data.get('adultos', 1)), ninos=int(data.get('ninos', 0)),
+        total=round(total, 2), habitacion_id=hab.id, posada_id=hab.posada_id,
+        metodo_pago=data.get('metodo_pago', ''),
+        comprobante=comprobante_filename,
+        datos_huespedes=data.get('datos_huespedes', '[]'),
+        estado='pago_reportado'
     )
     db.session.add(reserva)
     db.session.commit()
@@ -355,9 +370,12 @@ def reservas_pendientes():
     return jsonify([{
         'id': r.id, 'cliente_nombre': r.cliente_nombre,
         'cliente_telefono': r.cliente_telefono,
+        'cliente_email': r.cliente_email,
         'fecha_entrada': str(r.fecha_entrada),
         'fecha_salida': str(r.fecha_salida),
         'total': r.total, 'metodo_pago': r.metodo_pago,
+        'comprobante': r.comprobante,
+        'datos_huespedes': r.datos_huespedes,
         'fecha_reserva': r.fecha_reserva.strftime('%d/%m/%Y %H:%M')
     } for r in reservas])
 
