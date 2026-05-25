@@ -279,17 +279,20 @@ def crear_reserva():
         total = hab.precio_base * dias
         
         comprobante_filename = None
-        if 'comprobante' in request.files:
+        # Solo guardar comprobante si NO es efectivo
+        if metodo_pago != 'efectivo' and 'comprobante' in request.files:
             file = request.files['comprobante']
-            if file and file.filename:
+            if file and file.filename and file.filename != '':
                 try:
                     filename = secure_filename(file.filename)
                     filename = f"pago_{datetime.now().strftime('%Y%m%d%H%M%S')}_{filename}"
+                    os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
                     upload_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
                     file.save(upload_path)
                     comprobante_filename = filename
                 except Exception as e:
                     print(f"Error guardando comprobante: {e}")
+                    comprobante_filename = None
         
         reserva = Reserva(
             cliente_nombre=cliente_nombre,
@@ -437,6 +440,34 @@ def reservas_pendientes():
         'datos_huespedes': r.datos_huespedes,
         'fecha_reserva': r.fecha_reserva.strftime('%d/%m/%Y %H:%M')
     } for r in reservas])
+
+@app.route('/api/todas-reservas')
+@login_required
+def todas_reservas():
+    reservas = Reserva.query.filter_by(
+        posada_id=current_user.posada_id
+    ).order_by(Reserva.fecha_reserva.desc()).all()
+    
+    resultado = []
+    for r in reservas:
+        hab = db.session.get(Habitacion, r.habitacion_id)
+        resultado.append({
+            'id': r.id,
+            'cliente_nombre': r.cliente_nombre,
+            'cliente_telefono': r.cliente_telefono,
+            'cliente_email': r.cliente_email,
+            'habitacion_nombre': hab.nombre if hab else 'N/A',
+            'fecha_entrada': str(r.fecha_entrada),
+            'fecha_salida': str(r.fecha_salida),
+            'total': r.total,
+            'estado': r.estado,
+            'metodo_pago': r.metodo_pago or '-',
+            'comprobante': r.comprobante,
+            'datos_huespedes': r.datos_huespedes,
+            'fecha_reserva': r.fecha_reserva.strftime('%d/%m/%Y %H:%M')
+        })
+    
+    return jsonify(resultado)
 
 @app.route('/api/validar-pago/<int:reserva_id>', methods=['POST'])
 @login_required
