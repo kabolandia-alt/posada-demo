@@ -279,7 +279,6 @@ def crear_reserva():
         total = hab.precio_base * dias
         
         comprobante_filename = None
-        # Solo guardar comprobante si NO es efectivo
         if metodo_pago != 'efectivo' and 'comprobante' in request.files:
             file = request.files['comprobante']
             if file and file.filename and file.filename != '':
@@ -468,6 +467,30 @@ def todas_reservas():
         })
     
     return jsonify(resultado)
+
+@app.route('/api/ingresos-mes')
+@login_required
+def ingresos_mes():
+    hoy = datetime.now()
+    inicio_mes = datetime(hoy.year, hoy.month, 1).date()
+    if hoy.month == 12:
+        fin_mes = datetime(hoy.year + 1, 1, 1).date() - timedelta(days=1)
+    else:
+        fin_mes = datetime(hoy.year, hoy.month + 1, 1).date() - timedelta(days=1)
+    
+    reservas = Reserva.query.filter(
+        Reserva.posada_id == current_user.posada_id,
+        Reserva.estado == 'confirmada',
+        Reserva.fecha_reserva >= inicio_mes,
+        Reserva.fecha_reserva <= fin_mes
+    ).all()
+    
+    total_ingresos = sum(r.total for r in reservas)
+    
+    return jsonify({
+        'total': round(total_ingresos, 2),
+        'cantidad': len(reservas)
+    })
 
 @app.route('/api/validar-pago/<int:reserva_id>', methods=['POST'])
 @login_required

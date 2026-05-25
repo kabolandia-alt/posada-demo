@@ -182,7 +182,9 @@
                 document.getElementById('ocupadas-hoy').textContent = ocupadas;
             });
             fetch('/api/reservas-pendientes').then(r => r.json()).then(d => { document.getElementById('pendientes-pago').textContent = d.length; });
-            document.getElementById('ingresos-mes').textContent = '$0';
+            fetch('/api/ingresos-mes').then(r => r.json()).then(d => {
+                document.getElementById('ingresos-mes').textContent = '$' + d.total;
+            });
         }
         
         function mesAnterior() { mesActual--; if (mesActual < 0) { mesActual = 11; añoActual--; } cargarCalendario(); }
