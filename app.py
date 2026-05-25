@@ -375,7 +375,7 @@ def validar_pago(reserva_id):
 with app.app_context():
     db.create_all()
     if not Usuario.query.filter_by(username='admin').first():
-        posada = Posada(nombre='Posada Paraiso', direccion='Calle Principal 123')
+        posada = Posada(nombre='Demo-Posadas', direccion='Sistema de gestión de prueba')
         db.session.add(posada)
         db.session.commit()
         admin = Usuario(username='admin', password_hash=generate_password_hash('admin123'),
