@@ -15,9 +15,13 @@ app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'clave_super_secreta_202
 # Usar PostgreSQL si está disponible (Render), sino SQLite (local)
 database_url = os.environ.get('DATABASE_URL')
 if database_url:
-    if database_url.startswith('postgres://'):
-        database_url = database_url.replace('postgres://', 'postgresql://', 1)
+    # Render usa postgres://, SQLAlchemy necesita postgresql://
+    database_url = database_url.replace('postgres://', 'postgresql://', 1)
     app.config['SQLALCHEMY_DATABASE_URI'] = database_url
+    print("✅ Usando PostgreSQL")
+else:
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'posada.db')
+    print("✅ Usando SQLite")
 else:
     app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'posada.db')
 
