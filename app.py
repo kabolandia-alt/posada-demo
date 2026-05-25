@@ -11,7 +11,7 @@ basedir = os.path.abspath(os.path.dirname(__file__))
 
 app = Flask(__name__, template_folder=os.path.join(basedir, 'templates'))
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'clave_super_secreta_2024')
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'posada.db')
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///' + os.path.join(basedir, 'posada.db'))
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['UPLOAD_FOLDER'] = os.path.join(basedir, 'static', 'uploads')
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
@@ -237,55 +237,86 @@ def verificar_disponibilidad(posada_id):
 
 @app.route('/api/reservas', methods=['POST'])
 def crear_reserva():
-    if request.is_json:
-        data = request.get_json()
-    else:
-        data = request.form.to_dict()
-    
-    entrada = datetime.strptime(data['fecha_entrada'], '%Y-%m-%d').date()
-    salida = datetime.strptime(data['fecha_salida'], '%Y-%m-%d').date()
-    dias = (salida - entrada).days
-    hab = db.session.get(Habitacion, int(data['habitacion_id']))
-    if not hab:
-        return jsonify({'error': 'Habitacion no encontrada'}), 404
-    
-    total = hab.precio_base * dias
-    fecha = entrada
-    while fecha < salida:
-        tarifa = Tarifa.query.filter(
-            Tarifa.posada_id == hab.posada_id,
-            Tarifa.fecha_inicio <= fecha,
-            Tarifa.fecha_fin >= fecha
-        ).first()
-        if tarifa:
-            total += tarifa.multiplicador
-        fecha += timedelta(days=1)
-    
-    comprobante_filename = None
-    if 'comprobante' in request.files:
-        file = request.files['comprobante']
-        if file.filename:
-            filename = secure_filename(file.filename)
-            filename = f"pago_{datetime.now().strftime('%Y%m%d%H%M%S')}_{filename}"
-            file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
-            comprobante_filename = filename
-    
-    reserva = Reserva(
-        cliente_nombre=data.get('cliente_nombre', ''),
-        cliente_cedula=data.get('cliente_cedula', ''),
-        cliente_telefono=data.get('cliente_telefono', ''),
-        cliente_email=data.get('cliente_email', ''),
-        fecha_entrada=entrada, fecha_salida=salida,
-        adultos=int(data.get('adultos', 1)), ninos=int(data.get('ninos', 0)),
-        total=round(total, 2), habitacion_id=hab.id, posada_id=hab.posada_id,
-        metodo_pago=data.get('metodo_pago', ''),
-        comprobante=comprobante_filename,
-        datos_huespedes=data.get('datos_huespedes', '[]'),
-        estado='pago_reportado'
-    )
-    db.session.add(reserva)
-    db.session.commit()
-    return jsonify({'message': 'Reserva creada', 'reserva_id': reserva.id, 'total': round(total, 2)})
+    try:
+        cliente_nombre = request.form.get('cliente_nombre', '')
+        cliente_cedula = request.form.get('cliente_cedula', '')
+        cliente_telefono = request.form.get('cliente_telefono', '')
+        cliente_email = request.form.get('cliente_email', '')
+        fecha_entrada_str = request.form.get('fecha_entrada', '')
+        fecha_salida_str = request.form.get('fecha_salida', '')
+        adultos = int(request.form.get('adultos', 1))
+        ninos = int(request.form.get('ninos', 0))
+        metodo_pago = request.form.get('metodo_pago', '')
+        datos_huespedes = request.form.get('datos_huespedes', '[]')
+        habitacion_id = int(request.form.get('habitacion_id', 0))
+        
+        if not fecha_entrada_str or not fecha_salida_str:
+            return jsonify({'error': 'Fechas requeridas'}), 400
+            
+        entrada = datetime.strptime(fecha_entrada_str, '%Y-%m-%d').date()
+        salida = datetime.strptime(fecha_salida_str, '%Y-%m-%d').date()
+        dias = max((salida - entrada).days, 1)
+        
+        hab = db.session.get(Habitacion, habitacion_id)
+        if not hab:
+            return jsonify({'error': 'Habitacion no encontrada'}), 404
+        
+        total = hab.precio_base * dias
+        fecha = entrada
+        while fecha < salida:
+            tarifa = Tarifa.query.filter(
+                Tarifa.posada_id == hab.posada_id,
+                Tarifa.fecha_inicio <= fecha,
+                Tarifa.fecha_fin >= fecha
+            ).first()
+            if tarifa:
+                total += tarifa.multiplicador
+            fecha += timedelta(days=1)
+        
+        comprobante_filename = None
+        if 'comprobante' in request.files:
+            file = request.files['comprobante']
+            if file and file.filename:
+                try:
+                    filename = secure_filename(file.filename)
+                    filename = f"pago_{datetime.now().strftime('%Y%m%d%H%M%S')}_{filename}"
+                    upload_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                    file.save(upload_path)
+                    comprobante_filename = filename
+                except Exception as e:
+                    print(f"Error guardando comprobante: {e}")
+        
+        reserva = Reserva(
+            cliente_nombre=cliente_nombre,
+            cliente_cedula=cliente_cedula,
+            cliente_telefono=cliente_telefono,
+            cliente_email=cliente_email,
+            fecha_entrada=entrada,
+            fecha_salida=salida,
+            adultos=adultos,
+            ninos=ninos,
+            total=round(total, 2),
+            habitacion_id=habitacion_id,
+            posada_id=hab.posada_id,
+            metodo_pago=metodo_pago,
+            comprobante=comprobante_filename,
+            datos_huespedes=datos_huespedes,
+            estado='pago_reportado'
+        )
+        
+        db.session.add(reserva)
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'Reserva creada exitosamente',
+            'reserva_id': reserva.id,
+            'total': round(total, 2)
+        })
+        
+    except Exception as e:
+        print(f"Error en crear_reserva: {str(e)}")
+        db.session.rollback()
+        return jsonify({'error': f'Error al crear reserva: {str(e)}'}), 500
 
 @app.route('/api/tarifas', methods=['GET'])
 @login_required
