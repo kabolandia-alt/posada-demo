@@ -11,7 +11,7 @@ basedir = os.path.abspath(os.path.dirname(__file__))
 
 app = Flask(__name__, template_folder=os.path.join(basedir, 'templates'))
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'clave_super_secreta_2024')
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///' + os.path.join(basedir, 'posada.db'))
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'posada.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['UPLOAD_FOLDER'] = os.path.join(basedir, 'static', 'uploads')
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
@@ -198,42 +198,57 @@ def eliminar_habitacion(id):
 
 @app.route('/api/disponibilidad/<int:posada_id>')
 def verificar_disponibilidad(posada_id):
-    entrada = datetime.strptime(request.args.get('entrada'), '%Y-%m-%d').date()
-    salida = datetime.strptime(request.args.get('salida'), '%Y-%m-%d').date()
-    reservas = Reserva.query.filter(
-        Reserva.posada_id == posada_id,
-        Reserva.estado.in_(['confirmada', 'pago_reportado']),
-        Reserva.fecha_entrada < salida,
-        Reserva.fecha_salida > entrada
-    ).all()
-    ocupadas = [r.habitacion_id for r in reservas]
-    disponibles = Habitacion.query.filter(
-        Habitacion.posada_id == posada_id,
-        Habitacion.estado == 'disponible',
-        ~Habitacion.id.in_(ocupadas) if ocupadas else True
-    ).all()
-    dias = max((salida - entrada).days, 1)
-    resultado = []
-    for h in disponibles:
-        total = h.precio_base * dias
-        fecha = entrada
-        while fecha < salida:
-            tarifa = Tarifa.query.filter(
-                Tarifa.posada_id == posada_id,
-                Tarifa.fecha_inicio <= fecha,
-                Tarifa.fecha_fin >= fecha
-            ).first()
-            if tarifa:
-                total += tarifa.multiplicador
-            fecha += timedelta(days=1)
-        resultado.append({
-            'id': h.id, 'nombre': h.nombre, 'tipo': h.tipo,
-            'capacidad': h.capacidad, 'precio_total': round(total, 2),
-            'precio_por_noche': round(total/dias, 2), 'descripcion': h.descripcion,
-            'servicios': json.loads(h.servicios) if h.servicios else [],
-            'imagen': h.imagen, 'camas': h.camas
-        })
-    return jsonify(resultado)
+    try:
+        entrada_str = request.args.get('entrada')
+        salida_str = request.args.get('salida')
+        
+        if not entrada_str or not salida_str:
+            return jsonify([])
+        
+        entrada = datetime.strptime(entrada_str, '%Y-%m-%d').date()
+        salida = datetime.strptime(salida_str, '%Y-%m-%d').date()
+        
+        reservas = Reserva.query.filter(
+            Reserva.posada_id == posada_id,
+            Reserva.estado.in_(['confirmada', 'pago_reportado']),
+            Reserva.fecha_entrada < salida,
+            Reserva.fecha_salida > entrada
+        ).all()
+        
+        ocupadas = [r.habitacion_id for r in reservas]
+        
+        if ocupadas:
+            disponibles = Habitacion.query.filter(
+                Habitacion.posada_id == posada_id,
+                Habitacion.estado == 'disponible',
+                ~Habitacion.id.in_(ocupadas)
+            ).all()
+        else:
+            disponibles = Habitacion.query.filter_by(posada_id=posada_id, estado='disponible').all()
+        
+        dias = max((salida - entrada).days, 1)
+        resultado = []
+        
+        for h in disponibles:
+            total = h.precio_base * dias
+            resultado.append({
+                'id': h.id,
+                'nombre': h.nombre,
+                'tipo': h.tipo,
+                'capacidad': h.capacidad,
+                'precio_total': round(total, 2),
+                'precio_por_noche': round(total/dias, 2),
+                'descripcion': h.descripcion or '',
+                'servicios': json.loads(h.servicios) if h.servicios else [],
+                'imagen': h.imagen or '',
+                'camas': h.camas or ''
+            })
+        
+        return jsonify(resultado)
+    
+    except Exception as e:
+        print(f"Error en disponibilidad: {e}")
+        return jsonify([])
 
 @app.route('/api/reservas', methods=['POST'])
 def crear_reserva():
@@ -262,16 +277,6 @@ def crear_reserva():
             return jsonify({'error': 'Habitacion no encontrada'}), 404
         
         total = hab.precio_base * dias
-        fecha = entrada
-        while fecha < salida:
-            tarifa = Tarifa.query.filter(
-                Tarifa.posada_id == hab.posada_id,
-                Tarifa.fecha_inicio <= fecha,
-                Tarifa.fecha_fin >= fecha
-            ).first()
-            if tarifa:
-                total += tarifa.multiplicador
-            fecha += timedelta(days=1)
         
         comprobante_filename = None
         if 'comprobante' in request.files:
