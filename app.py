@@ -23,7 +23,10 @@ login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login_admin'
 
+# ============================================================
 # MODELOS
+# ============================================================
+
 class Posada(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     nombre = db.Column(db.String(100), default='Mi Posada')
@@ -99,7 +102,10 @@ class Configuracion(db.Model):
     valor = db.Column(db.String(100))
     posada_id = db.Column(db.Integer, db.ForeignKey('posada.id'))
 
+# ============================================================
 # FUNCIONES AUXILIARES
+# ============================================================
+
 def cancelar_reservas_expiradas():
     ahora = datetime.utcnow()
     reservas_expiradas = Reserva.query.filter(
@@ -132,7 +138,10 @@ def calcular_tarifa_aplicable(posada_id, fecha):
 def load_user(user_id):
     return db.session.get(Usuario, int(user_id))
 
+# ============================================================
 # RUTAS BÁSICAS
+# ============================================================
+
 @app.route('/')
 def inicio():
     return render_template('cliente/inicio.html')
@@ -159,7 +168,10 @@ def logout_admin():
     logout_user()
     return redirect(url_for('login_admin'))
 
+# ============================================================
 # API HABITACIONES
+# ============================================================
+
 @app.route('/api/habitaciones', methods=['GET'])
 @login_required
 def obtener_habitaciones():
@@ -207,6 +219,41 @@ def crear_habitacion():
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/habitaciones/<int:id>', methods=['PUT'])
+@login_required
+def actualizar_habitacion(id):
+    hab = db.session.get(Habitacion, id)
+    if not hab or hab.posada_id != current_user.posada_id:
+        return jsonify({'error': 'No encontrada'}), 404
+    
+    try:
+        if request.is_json:
+            data = request.get_json()
+            for campo in ['nombre', 'tipo', 'capacidad', 'camas', 'precio_base', 'descripcion', 'servicios']:
+                if campo in data:
+                    setattr(hab, campo, data[campo])
+        else:
+            for campo in ['nombre', 'tipo', 'capacidad', 'camas', 'precio_base', 'descripcion', 'servicios']:
+                if campo in request.form:
+                    setattr(hab, campo, request.form[campo])
+            if 'imagen' in request.files:
+                file = request.files['imagen']
+                if file and file.filename:
+                    if hab.imagen:
+                        old_path = os.path.join(app.config['UPLOAD_FOLDER'], hab.imagen)
+                        if os.path.exists(old_path): os.remove(old_path)
+                    filename = secure_filename(file.filename)
+                    filename = f"{datetime.now().strftime('%Y%m%d%H%M%S')}_{filename}"
+                    os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+                    file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+                    hab.imagen = filename
+        
+        db.session.commit()
+        return jsonify({'message': 'Actualizada correctamente'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/habitaciones/<int:id>', methods=['DELETE'])
 @login_required
 def eliminar_habitacion(id):
@@ -217,7 +264,10 @@ def eliminar_habitacion(id):
         return jsonify({'message': 'Eliminada'})
     return jsonify({'error': 'No encontrada'}), 404
 
-# API DISPONIBILIDAD
+# ============================================================
+# API DISPONIBILIDAD Y RESERVAS
+# ============================================================
+
 @app.route('/api/disponibilidad/<int:posada_id>')
 def verificar_disponibilidad(posada_id):
     try:
@@ -233,12 +283,13 @@ def verificar_disponibilidad(posada_id):
         
         todas_habitaciones = Habitacion.query.filter_by(posada_id=posada_id, estado='disponible').all()
         
+        # ✅ CORREGIDO: <= y >= para incluir mismo día
         reservas_activas = Reserva.query.filter(
             Reserva.posada_id == posada_id,
             Reserva.habitacion_id.isnot(None),
             Reserva.estado != 'cancelada',
-            cast(Reserva.fecha_entrada, Date) < salida,
-            cast(Reserva.fecha_salida, Date) > entrada
+            cast(Reserva.fecha_entrada, Date) <= salida,
+            cast(Reserva.fecha_salida, Date) >= entrada
         ).all()
         
         ocupadas_ids = list(set([r.habitacion_id for r in reservas_activas]))
@@ -277,11 +328,12 @@ def crear_reserva():
         if not hab:
             return jsonify({'error': 'Habitacion no encontrada'}), 404
         
+        # ✅ CORREGIDO: <= y >= para incluir mismo día
         conflicto = Reserva.query.filter(
             Reserva.habitacion_id == hab.id,
             Reserva.estado != 'cancelada',
-            cast(Reserva.fecha_entrada, Date) < salida,
-            cast(Reserva.fecha_salida, Date) > entrada
+            cast(Reserva.fecha_entrada, Date) <= salida,
+            cast(Reserva.fecha_salida, Date) >= entrada
         ).first()
         if conflicto:
             return jsonify({'error': 'Ya no está disponible'}), 409
@@ -336,7 +388,10 @@ def crear_reserva():
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
 
+# ============================================================
 # API TARIFAS
+# ============================================================
+
 @app.route('/api/tarifas', methods=['GET'])
 @login_required
 def obtener_tarifas():
@@ -380,7 +435,10 @@ def eliminar_tarifa(id):
         return jsonify({'message': 'Tarifa eliminada'})
     return jsonify({'error': 'No encontrada'}), 404
 
+# ============================================================
 # API CALENDARIO Y RESERVAS
+# ============================================================
+
 @app.route('/api/calendario-completo')
 @login_required
 def calendario_completo():
@@ -391,6 +449,8 @@ def calendario_completo():
     fin = (datetime(año + 1, 1, 1) if mes == 12 else datetime(año, mes + 1, 1)).date() - timedelta(days=1)
     
     total_habitaciones = Habitacion.query.filter_by(posada_id=current_user.posada_id).count()
+    
+    # ✅ CORREGIDO: <= y >= para incluir mismo día
     reservas = Reserva.query.filter(
         Reserva.posada_id == current_user.posada_id,
         Reserva.estado != 'cancelada',
@@ -505,7 +565,10 @@ def guardar_configuracion():
     db.session.commit()
     return jsonify({'message': 'Guardado'})
 
+# ============================================================
 # PORTAL AGENCIAS
+# ============================================================
+
 @app.route('/agencia/login', methods=['GET', 'POST'])
 def login_agencia():
     if request.method == 'POST':
@@ -540,6 +603,8 @@ def calendario_agencia():
     fin = (datetime(año + 1, 1, 1) if mes == 12 else datetime(año, mes + 1, 1)).date() - timedelta(days=1)
     
     total_habitaciones = Habitacion.query.filter_by(posada_id=1).count()
+    
+    # ✅ CORREGIDO: <= y >= para incluir mismo día
     reservas = Reserva.query.filter(
         Reserva.posada_id == 1,
         Reserva.estado != 'cancelada',
@@ -566,7 +631,10 @@ def calendario_agencia():
                         for h in Habitacion.query.filter_by(posada_id=1).all()]
     })
 
+# ============================================================
 # EXPORTAR
+# ============================================================
+
 @app.route('/api/exportar-reservas')
 @login_required
 def exportar_reservas():
@@ -622,28 +690,6 @@ def exportar_ingresos():
     return Response(output.getvalue(), mimetype='text/csv',
                    headers={'Content-Disposition': f'attachment;filename=Ingresos_{mes}_{año}.csv'})
 
-# INICIALIZACIÓN
-with app.app_context():
-    db.create_all()
-    if not Usuario.query.filter_by(username='admin').first():
-        posada = Posada(nombre='Demo-Posadas', direccion='Sistema de gestion de prueba')
-        db.session.add(posada)
-        db.session.commit()
-        
-        db.session.add(Usuario(username='admin', password_hash=generate_password_hash('admin123'), rol='admin', posada_id=posada.id))
-        db.session.add(Agencia(nombre='Agencia Demo', email='agencia@demo.com', password_hash=generate_password_hash('agencia123'), posada_id=posada.id))
-        db.session.add(Configuracion(clave='tiempo_expiracion', valor='40', posada_id=posada.id))
-        db.session.commit()
-        
-        for nombre, tipo, cap, camas, precio in [
-            ('Deluxe Vista al Mar', 'matrimonial', 2, '1 cama King', 80),
-            ('Familiar Premium', 'familiar', 4, '2 camas Queen', 120),
-            ('Economica Standard', 'triple', 3, '1 matrimonial + 1 individual', 50),
-        ]:
-            db.session.add(Habitacion(nombre=nombre, tipo=tipo, capacidad=cap, camas=camas, 
-                                     precio_base=precio, descripcion='Hermosa habitacion', posada_id=posada.id))
-        db.session.commit()
-        print("✅ Base de datos inicial creada")
 # ============================================================
 # REINICIAR BASE DE DATOS
 # ============================================================
@@ -680,6 +726,33 @@ def reiniciar_bd():
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
+
+# ============================================================
+# INICIALIZACIÓN
+# ============================================================
+
+with app.app_context():
+    db.create_all()
+    if not Usuario.query.filter_by(username='admin').first():
+        posada = Posada(nombre='Demo-Posadas', direccion='Sistema de gestion de prueba')
+        db.session.add(posada)
+        db.session.commit()
+        
+        db.session.add(Usuario(username='admin', password_hash=generate_password_hash('admin123'), rol='admin', posada_id=posada.id))
+        db.session.add(Agencia(nombre='Agencia Demo', email='agencia@demo.com', password_hash=generate_password_hash('agencia123'), posada_id=posada.id))
+        db.session.add(Configuracion(clave='tiempo_expiracion', valor='40', posada_id=posada.id))
+        db.session.commit()
+        
+        for nombre, tipo, cap, camas, precio in [
+            ('Deluxe Vista al Mar', 'matrimonial', 2, '1 cama King', 80),
+            ('Familiar Premium', 'familiar', 4, '2 camas Queen', 120),
+            ('Economica Standard', 'triple', 3, '1 matrimonial + 1 individual', 50),
+        ]:
+            db.session.add(Habitacion(nombre=nombre, tipo=tipo, capacidad=cap, camas=camas, 
+                                     precio_base=precio, descripcion='Hermosa habitacion', posada_id=posada.id))
+        db.session.commit()
+        print("✅ Base de datos inicial creada")
+
 if __name__ == '__main__':
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
     port = int(os.environ.get('PORT', 5000))
