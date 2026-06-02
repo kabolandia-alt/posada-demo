@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calendario - Portal Agencias</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        :root { --primario: #11998e; }
+        body { background: #f5f7fa; font-family: 'Segoe UI', sans-serif; }
+        .header { background: var(--primario); color: white; padding: 15px 30px; }
+        .calendario-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; font-size: 14px; }
+        .calendario-header { text-align: center; font-weight: bold; padding: 8px; background: var(--primario); color: white; border-radius: 5px; }
+        .calendario-dia { padding: 10px 5px; text-align: center; border-radius: 8px; min-height: 70px; }
+        .calendario-dia.vacio { background: #f9f9f9; color: #ccc; }
+        .calendario-dia.libre { background: #e8f5e9; color: #2e7d32; font-weight: 500; }
+        .calendario-dia.ocupado { background: #ffebee; color: #c62828; font-weight: 500; }
+        .calendario-dia.bloqueado { background: #fff3e0; color: #e65100; font-weight: 500; }
+        .calendario-navegacion { display: flex; justify-content: space-between; align-items: center; margin: 20px 0; }
+        .calendario-navegacion button { background: var(--primario); color: white; border: none; padding: 10px 20px; border-radius: 10px; cursor: pointer; font-weight: bold; }
+        @media (max-width: 768px) { .calendario-dia { min-height: 40px; padding: 5px; font-size: 11px; } }
+    </style>
+</head>
+<body>
+    <div class="header d-flex justify-content-between align-items-center">
+        <h4>🏢 Portal de Agencias - Calendario de Ocupación</h4>
+        <div>
+            <span class="me-3">🟢 Disponible | 🔴 Ocupado | 🟠 Parcial</span>
+            <a href="/agencia/logout" class="btn btn-light btn-sm">Salir</a>
+        </div>
+    </div>
+    <div class="container py-4">
+        <div class="calendario-navegacion">
+            <button onclick="mesAnterior()">◀ Anterior</button>
+            <h3 id="titulo-mes"></h3>
+            <button onclick="mesSiguiente()">Siguiente ▶</button>
+        </div>
+        <div id="calendario-content"></div>
+    </div>
+    <script>
+        var mesActual = new Date().getMonth(), añoActual = new Date().getFullYear();
+        
+        function mesAnterior() { mesActual--; if (mesActual < 0) { mesActual = 11; añoActual--; } cargarCalendario(); }
+        function mesSiguiente() { mesActual++; if (mesActual > 11) { mesActual = 0; añoActual++; } cargarCalendario(); }
+        
+        function cargarCalendario() {
+            var nombres = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+            document.getElementById('titulo-mes').textContent = nombres[mesActual] + ' ' + añoActual;
+            
+            fetch('/api/calendario-agencia?mes=' + (mesActual + 1) + '&año=' + añoActual)
+                .then(r => r.json())
+                .then(d => {
+                    var html = '<div class="calendario-grid">';
+                    ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'].forEach(function(dia) { 
+                        html += '<div class="calendario-header">' + dia + '</div>'; 
+                    });
+                    
+                    for (var i = 0; i < d.primer_dia_semana; i++) 
+                        html += '<div class="calendario-dia vacio"></div>';
+                    
+                    for (var dia = 1; dia <= d.total_dias; dia++) {
+                        var fechaStr = añoActual + '-' + String(mesActual + 1).padStart(2, '0') + '-' + String(dia).padStart(2, '0');
+                        var ocupacion = d.ocupacion_por_dia[fechaStr];
+                        
+                        if (ocupacion) {
+                            var disponibles = ocupacion.disponibles;
+                            var total = ocupacion.total;
+                            
+                            if (disponibles === 0) {
+                                html += '<div class="calendario-dia ocupado"><span>' + dia + '</span><br><small>🔴 0/' + total + '</small></div>';
+                            } else if (disponibles === total) {
+                                html += '<div class="calendario-dia libre"><span>' + dia + '</span><br><small>🟢 ' + disponibles + '/' + total + '</small></div>';
+                            } else {
+                                html += '<div class="calendario-dia bloqueado"><span>' + dia + '</span><br><small>🟠 ' + disponibles + '/' + total + '</small></div>';
+                            }
+                        }
+                    }
+                    html += '</div>';
+                    document.getElementById('calendario-content').innerHTML = html;
+                });
+        }
+        
+        cargarCalendario();
+    </script>
+</body>
+</html>

@@ -1,5 +1,5 @@
 import os
-from flask import Flask, render_template, request, jsonify, redirect, url_for, Response
+from flask import Flask, render_template, request, jsonify, redirect, url_for, Response, session
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from datetime import datetime, timedelta
@@ -8,6 +8,9 @@ from werkzeug.utils import secure_filename
 import json
 import csv
 from io import StringIO
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 basedir = os.path.abspath(os.path.dirname(__file__))
 
@@ -80,6 +83,45 @@ class Tarifa(db.Model):
     fecha_inicio = db.Column(db.Date)
     fecha_fin = db.Column(db.Date)
     posada_id = db.Column(db.Integer, db.ForeignKey('posada.id'))
+
+class Agencia(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    nombre = db.Column(db.String(100))
+    email = db.Column(db.String(100))
+    password_hash = db.Column(db.String(120))
+    activo = db.Column(db.Boolean, default=True)
+    posada_id = db.Column(db.Integer, db.ForeignKey('posada.id'))
+
+class BloqueoTemporal(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    habitacion_id = db.Column(db.Integer, db.ForeignKey('habitacion.id'))
+    fecha_entrada = db.Column(db.Date)
+    fecha_salida = db.Column(db.Date)
+    agencia_id = db.Column(db.Integer, db.ForeignKey('agencia.id'))
+    fecha_bloqueo = db.Column(db.DateTime, default=datetime.utcnow)
+    expira_en = db.Column(db.DateTime)
+    activo = db.Column(db.Boolean, default=True)
+
+def enviar_email(destinatario, asunto, mensaje):
+    try:
+        remitente = "tusistema@gmail.com"
+        password = "tu_contraseña_de_app"
+        
+        msg = MIMEMultipart()
+        msg['From'] = remitente
+        msg['To'] = destinatario
+        msg['Subject'] = asunto
+        msg.attach(MIMEText(mensaje, 'html'))
+        
+        server = smtplib.SMTP('smtp.gmail.com', 587)
+        server.starttls()
+        server.login(remitente, password)
+        server.send_message(msg)
+        server.quit()
+        return True
+    except Exception as e:
+        print(f"Error enviando email: {e}")
+        return False
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -603,10 +645,128 @@ def validar_pago(reserva_id):
     data = request.json
     reserva = db.session.get(Reserva, reserva_id)
     if reserva and reserva.posada_id == current_user.posada_id:
-        reserva.estado = data.get('accion', 'confirmada')
+        accion = data.get('accion', 'confirmada')
+        reserva.estado = accion
         db.session.commit()
+        
+        if reserva.cliente_email:
+            hab = db.session.get(Habitacion, reserva.habitacion_id)
+            if accion == 'confirmada':
+                asunto = f"✅ Reserva #{reserva.id} Confirmada"
+                mensaje = f"""
+                <h2>¡Reserva Confirmada!</h2>
+                <p>Hola {reserva.cliente_nombre},</p>
+                <p>Su reserva ha sido <strong>APROBADA</strong>.</p>
+                <hr>
+                <p><strong>Habitación:</strong> {hab.nombre if hab else 'N/A'}</p>
+                <p><strong>Check-in:</strong> {reserva.fecha_entrada}</p>
+                <p><strong>Check-out:</strong> {reserva.fecha_salida}</p>
+                <p><strong>Total:</strong> ${reserva.total}</p>
+                <hr>
+                <p>¡Lo esperamos!</p>
+                """
+            else:
+                asunto = f"❌ Reserva #{reserva.id} Rechazada"
+                mensaje = f"""
+                <h2>Reserva Rechazada</h2>
+                <p>Hola {reserva.cliente_nombre},</p>
+                <p>Su reserva ha sido <strong>RECHAZADA</strong>.</p>
+                <p>Puede intentar nuevamente o contactarnos.</p>
+                """
+            try:
+                enviar_email(reserva.cliente_email, asunto, mensaje)
+            except:
+                pass
+        
         return jsonify({'message': 'Actualizado'})
     return jsonify({'error': 'No encontrada'}), 404
+
+# ============ PORTAL DE AGENCIAS ============
+
+@app.route('/agencia/login', methods=['GET', 'POST'])
+def login_agencia():
+    if request.method == 'POST':
+        email = request.form.get('email')
+        password = request.form.get('password')
+        agencia = Agencia.query.filter_by(email=email, activo=True).first()
+        if agencia and check_password_hash(agencia.password_hash, password):
+            session['agencia_id'] = agencia.id
+            session['agencia_nombre'] = agencia.nombre
+            return redirect(url_for('panel_agencia'))
+    return render_template('agencia/login.html')
+
+@app.route('/agencia')
+def panel_agencia():
+    if not session.get('agencia_id'):
+        return redirect(url_for('login_agencia'))
+    return render_template('agencia/calendario.html')
+
+@app.route('/agencia/logout')
+def logout_agencia():
+    session.pop('agencia_id', None)
+    session.pop('agencia_nombre', None)
+    return redirect(url_for('login_agencia'))
+
+@app.route('/api/calendario-agencia')
+def calendario_agencia():
+    if not session.get('agencia_id'):
+        return jsonify({'error': 'No autorizado'}), 403
+    
+    mes = int(request.args.get('mes', datetime.now().month))
+    año = int(request.args.get('año', datetime.now().year))
+    
+    posada_id = 1
+    inicio = datetime(año, mes, 1).date()
+    if mes == 12:
+        fin = datetime(año + 1, 1, 1).date() - timedelta(days=1)
+    else:
+        fin = datetime(año, mes + 1, 1).date() - timedelta(days=1)
+    
+    total_habitaciones = Habitacion.query.filter_by(posada_id=posada_id).count()
+    
+    reservas = Reserva.query.filter(
+        Reserva.posada_id == posada_id,
+        Reserva.estado.in_(['confirmada', 'pago_reportado']),
+        Reserva.fecha_entrada <= fin,
+        Reserva.fecha_salida >= inicio
+    ).all()
+    
+    bloqueos = BloqueoTemporal.query.filter(
+        BloqueoTemporal.activo == True,
+        BloqueoTemporal.expira_en > datetime.utcnow(),
+        BloqueoTemporal.fecha_entrada <= fin,
+        BloqueoTemporal.fecha_salida >= inicio
+    ).all()
+    
+    ocupacion_por_dia = {}
+    for dia in range(1, fin.day + 1):
+        fecha = datetime(año, mes, dia).date()
+        fecha_str = fecha.strftime('%Y-%m-%d')
+        ocupadas = 0
+        bloqueadas = 0
+        for r in reservas:
+            if r.fecha_entrada <= fecha <= r.fecha_salida:
+                ocupadas += 1
+        for b in bloqueos:
+            if b.fecha_entrada <= fecha <= b.fecha_salida:
+                bloqueadas += 1
+        ocupacion_por_dia[fecha_str] = {
+            'ocupadas': ocupadas,
+            'bloqueadas': bloqueadas,
+            'disponibles': total_habitaciones - ocupadas - bloqueadas,
+            'total': total_habitaciones
+        }
+    
+    return jsonify({
+        'total_dias': fin.day,
+        'primer_dia_semana': (inicio.weekday() + 1) % 7,
+        'mes': mes,
+        'año': año,
+        'ocupacion_por_dia': ocupacion_por_dia,
+        'habitaciones': [{'id': h.id, 'nombre': h.nombre, 'tipo': h.tipo, 'precio_base': h.precio_base} for h in Habitacion.query.filter_by(posada_id=posada_id).all()]
+    })
+
+# ============================================
 
 @app.route('/api/reiniciar-bd')
 def reiniciar_bd():
@@ -621,6 +781,11 @@ def reiniciar_bd():
         admin = Usuario(username='admin', password_hash=generate_password_hash('admin123'),
                         rol='admin', posada_id=posada.id)
         db.session.add(admin)
+        
+        agencia = Agencia(nombre='Agencia Demo', email='agencia@demo.com',
+                         password_hash=generate_password_hash('agencia123'),
+                         posada_id=posada.id)
+        db.session.add(agencia)
         db.session.commit()
         
         habs = [
@@ -647,7 +812,13 @@ with app.app_context():
         admin = Usuario(username='admin', password_hash=generate_password_hash('admin123'),
                         rol='admin', posada_id=posada.id)
         db.session.add(admin)
+        
+        agencia = Agencia(nombre='Agencia Demo', email='agencia@demo.com',
+                         password_hash=generate_password_hash('agencia123'),
+                         posada_id=posada.id)
+        db.session.add(agencia)
         db.session.commit()
+        
         habs = [
             ('Deluxe Vista al Mar', 'matrimonial', 2, '1 cama King', 80),
             ('Familiar Premium', 'familiar', 4, '2 camas Queen', 120),
@@ -660,6 +831,7 @@ with app.app_context():
         db.session.commit()
         print("✅ Base de datos creada")
         print("👤 admin | 🔑 admin123")
+        print("🏢 agencia@demo.com | 🔑 agencia123")
 
 if __name__ == '__main__':
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
