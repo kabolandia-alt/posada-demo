@@ -116,6 +116,23 @@ def enviar_email(destinatario, asunto, mensaje):
     print(f"   Asunto: {asunto}")
     return True
 
+def cancelar_reservas_expiradas():
+    """Cancela reservas 'solo_reserva' que hayan expirado"""
+    ahora = datetime.utcnow()
+    reservas_expiradas = Reserva.query.filter(
+        Reserva.solo_reserva == True,
+        Reserva.estado == 'pendiente',
+        Reserva.fecha_expiracion < ahora
+    ).all()
+    
+    for r in reservas_expiradas:
+        r.estado = 'cancelada'
+        r.comentario_rechazo = 'Cancelada automáticamente por tiempo límite'
+    
+    if reservas_expiradas:
+        db.session.commit()
+        print(f"⏰ {len(reservas_expiradas)} reservas canceladas por expiración")
+
 @login_manager.user_loader
 def load_user(user_id):
     return db.session.get(Usuario, int(user_id))
@@ -149,6 +166,7 @@ def logout_admin():
 @app.route('/api/habitaciones', methods=['GET'])
 @login_required
 def obtener_habitaciones():
+    cancelar_reservas_expiradas()
     habitaciones = Habitacion.query.filter_by(posada_id=current_user.posada_id).all()
     return jsonify([{
         'id': h.id, 'nombre': h.nombre, 'tipo': h.tipo,
@@ -236,6 +254,9 @@ def eliminar_habitacion(id):
 @app.route('/api/disponibilidad/<int:posada_id>')
 def verificar_disponibilidad(posada_id):
     try:
+        # Cancelar reservas expiradas antes de verificar
+        cancelar_reservas_expiradas()
+        
         entrada_str = request.args.get('entrada')
         salida_str = request.args.get('salida')
         
@@ -421,6 +442,8 @@ def eliminar_tarifa(id):
 @app.route('/api/calendario-completo')
 @login_required
 def calendario_completo():
+    cancelar_reservas_expiradas()
+    
     mes = int(request.args.get('mes', datetime.now().month))
     año = int(request.args.get('año', datetime.now().year))
     inicio = datetime(año, mes, 1).date()
@@ -481,6 +504,8 @@ def calendario_completo():
 @app.route('/api/reservas-pendientes')
 @login_required
 def reservas_pendientes():
+    cancelar_reservas_expiradas()
+    
     reservas = Reserva.query.filter_by(
         posada_id=current_user.posada_id
     ).filter(Reserva.estado.in_(['pago_reportado', 'pendiente'])).order_by(Reserva.fecha_reserva.desc()).all()
@@ -504,6 +529,8 @@ def reservas_pendientes():
 @app.route('/api/todas-reservas')
 @login_required
 def todas_reservas():
+    cancelar_reservas_expiradas()
+    
     reservas = Reserva.query.filter_by(
         posada_id=current_user.posada_id
     ).order_by(Reserva.fecha_reserva.desc()).all()
@@ -562,6 +589,8 @@ def ingresos_mes():
 @app.route('/api/exportar-reservas')
 @login_required
 def exportar_reservas():
+    cancelar_reservas_expiradas()
+    
     mes = int(request.args.get('mes', datetime.now().month))
     año = int(request.args.get('año', datetime.now().year))
     
@@ -676,10 +705,6 @@ def validar_pago(reserva_id):
         
         db.session.commit()
         
-        # Email desactivado - se activará con servidor pago
-        # if reserva.cliente_email:
-        #     enviar_email(reserva.cliente_email, asunto, mensaje)
-        
         return jsonify({'message': 'Actualizado correctamente'})
     return jsonify({'error': 'No encontrada'}), 404
 
@@ -742,6 +767,8 @@ def logout_agencia():
 def calendario_agencia():
     if not session.get('agencia_id'):
         return jsonify({'error': 'No autorizado'}), 403
+    
+    cancelar_reservas_expiradas()
     
     mes = int(request.args.get('mes', datetime.now().month))
     año = int(request.args.get('año', datetime.now().year))
