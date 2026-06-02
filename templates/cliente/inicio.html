@@ -78,6 +78,7 @@
                 <h5 class="text-primary mt-3">💳 Método de Pago</h5>
                 <select id="metodoPago" name="metodo_pago" class="form-select mb-3" required onchange="mostrarDatosPago()">
                     <option value="">Seleccionar método</option>
+                    <option value="solo_reserva">📝 Solo Reservar (Sin pago - 40 min)</option>
                     <option value="zelle">Zelle</option>
                     <option value="binance">Binance</option>
                     <option value="transferencia">Transferencia Internacional</option>
@@ -107,6 +108,7 @@
         let habitacionSeleccionada = null, totalSeleccionado = 0;
         
         const datosPagoInfo = {
+            solo_reserva: `<strong>📝 Reserva Sin Pago:</strong><br>Su reserva será registrada pero <strong>NO estará confirmada</strong>.<br>⏰ Tiene <strong>40 minutos</strong> para realizar el pago.<br>Pasado ese tiempo, la reserva se cancelará automáticamente.<br><small class="text-danger">Debe completar el pago para confirmar.</small>`,
             zelle: `<strong>💵 Datos para Zelle:</strong><br>Titular: Demo Posadas C.A.<br>Email: pagos@demo-posadas.com<br>Teléfono: +1 (555) 123-4567<br><small class="text-danger">Enviar al número o email indicado</small>`,
             binance: `<strong>₿ Datos para Binance:</strong><br>Titular: Demo Posadas<br>Email: pagos@demo-posadas.com<br>ID Binance: 123456789<br><small class="text-danger">Usar red BSC (BEP20) o TRC20</small>`,
             transferencia: `<strong>🏦 Datos para Transferencia:</strong><br>Banco: Banco Internacional<br>Titular: Demo Posadas C.A.<br>Cuenta: 0123-4567-89-10111213<br>SWIFT: BINTVEXXX<br><small class="text-danger">Incluir número de reserva en el concepto</small>`,
@@ -124,8 +126,7 @@
                 div.innerHTML = datosPagoInfo[metodo];
                 div.style.display = 'block';
                 
-                // Si es efectivo, no requiere comprobante
-                if (metodo === 'efectivo') {
+                if (metodo === 'efectivo' || metodo === 'solo_reserva') {
                     comprobanteFile.removeAttribute('required');
                     comprobanteReq.style.display = 'none';
                     divComprobante.style.opacity = '0.5';
@@ -234,16 +235,17 @@
             formData.append('metodo_pago', metodoPago);
             formData.append('cliente_cedula', document.getElementById('tipoDocumento').value + ':' + document.getElementById('cedulaCliente').value);
             
-            // Si es efectivo, no enviar comprobante
-            if (metodoPago === 'efectivo') {
+            if (metodoPago === 'efectivo' || metodoPago === 'solo_reserva') {
                 formData.delete('comprobante');
             }
             
             fetch('/api/reservas', { method: 'POST', body: formData })
                 .then(r => r.json()).then(data => {
                     if (data.reserva_id) { 
-                        if (metodoPago === 'efectivo') {
-                            alert('✅ ¡Reserva creada con éxito!\nTotal: $' + data.total + '\n\nPor favor acérquese a nuestra oficina para realizar el pago.\nLe enviaremos instrucciones a su teléfono/email.');
+                        if (metodoPago === 'solo_reserva') {
+                            alert('✅ ¡Reserva creada con éxito!\n\n⏰ IMPORTANTE: Esta reserva expira en 40 minutos si no se realiza el pago.\nTotal: $' + data.total);
+                        } else if (metodoPago === 'efectivo') {
+                            alert('✅ ¡Reserva creada con éxito!\nTotal: $' + data.total + '\n\nPor favor acérquese a nuestra oficina para realizar el pago.');
                         } else {
                             alert('✅ ¡Reserva creada con éxito!\nTotal: $' + data.total + '\nTe contactaremos pronto.');
                         }
