@@ -282,7 +282,6 @@ def verificar_disponibilidad(posada_id):
         
         todas_habitaciones = Habitacion.query.filter_by(posada_id=posada_id, estado='disponible').all()
         
-        # ✅ CORREGIDO: Sin cast(Date) para SQLite
         reservas_activas = Reserva.query.filter(
             Reserva.posada_id == posada_id,
             Reserva.habitacion_id.isnot(None),
@@ -327,7 +326,6 @@ def crear_reserva():
         if not hab:
             return jsonify({'error': 'Habitacion no encontrada'}), 404
         
-        # ✅ CORREGIDO: Sin cast(Date) para SQLite
         conflicto = Reserva.query.filter(
             Reserva.habitacion_id == hab.id,
             Reserva.estado != 'cancelada',
@@ -435,7 +433,7 @@ def eliminar_tarifa(id):
     return jsonify({'error': 'No encontrada'}), 404
 
 # ============================================================
-# API CALENDARIO Y RESERVAS
+# API CALENDARIO Y RESERVAS (ADMIN)
 # ============================================================
 
 @app.route('/api/calendario-completo')
@@ -449,7 +447,6 @@ def calendario_completo():
     
     total_habitaciones = Habitacion.query.filter_by(posada_id=current_user.posada_id).count()
     
-    # ✅ CORREGIDO: Sin cast(Date) para SQLite
     reservas = Reserva.query.filter(
         Reserva.posada_id == current_user.posada_id,
         Reserva.estado != 'cancelada',
@@ -485,19 +482,39 @@ def reservas_pendientes():
         Reserva.estado.in_(['pago_reportado', 'pendiente'])
     ).order_by(Reserva.fecha_reserva.desc()).all()
     
-    return jsonify([{
-        'id': r.id, 'cliente_nombre': r.cliente_nombre,
-        'cliente_telefono': r.cliente_telefono,
-        'fecha_entrada': str(r.fecha_entrada),
-        'fecha_salida': str(r.fecha_salida),
-        'total': r.total, 'metodo_pago': r.metodo_pago,
-        'comprobante': r.comprobante,
-        'solo_reserva': r.solo_reserva,
-        'fecha_expiracion': r.fecha_expiracion.strftime('%d/%m/%Y %H:%M') if r.fecha_expiracion else 'Sin expiración',
-        'aprobado_por': r.aprobado_por,
-        'fecha_aprobacion': (r.fecha_aprobacion - timedelta(hours=4)).strftime('%d/%m/%Y %H:%M') if r.fecha_aprobacion else None,
-        'comentario_rechazo': r.comentario_rechazo
-    } for r in reservas])
+    resultado = []
+    for r in reservas:
+        hab = db.session.get(Habitacion, r.habitacion_id)
+        
+        expiracion = None
+        if r.fecha_expiracion:
+            expiracion = (r.fecha_expiracion - timedelta(hours=4)).strftime('%d/%m/%Y %H:%M')
+        
+        fecha_aprob = None
+        if r.fecha_aprobacion:
+            fecha_aprob = (r.fecha_aprobacion - timedelta(hours=4)).strftime('%d/%m/%Y %H:%M')
+        
+        resultado.append({
+            'id': r.id,
+            'cliente_nombre': r.cliente_nombre,
+            'cliente_telefono': r.cliente_telefono or 'No registrado',
+            'cliente_email': r.cliente_email or 'No registrado',
+            'habitacion_nombre': hab.nombre if hab else 'N/A',
+            'fecha_entrada': str(r.fecha_entrada),
+            'fecha_salida': str(r.fecha_salida),
+            'total': r.total,
+            'estado': r.estado,
+            'metodo_pago': r.metodo_pago or '-',
+            'comprobante': r.comprobante,
+            'datos_huespedes': r.datos_huespedes,
+            'solo_reserva': r.solo_reserva,
+            'fecha_expiracion': expiracion,
+            'aprobado_por': r.aprobado_por,
+            'fecha_aprobacion': fecha_aprob,
+            'comentario_rechazo': r.comentario_rechazo,
+            'fecha_reserva': (r.fecha_reserva - timedelta(hours=4)).strftime('%d/%m/%Y %H:%M')
+        })
+    return jsonify(resultado)
 
 @app.route('/api/todas-reservas')
 @login_required
@@ -507,13 +524,32 @@ def todas_reservas():
     resultado = []
     for r in reservas:
         hab = db.session.get(Habitacion, r.habitacion_id)
+        
+        expiracion = None
+        if r.fecha_expiracion:
+            expiracion = (r.fecha_expiracion - timedelta(hours=4)).strftime('%d/%m/%Y %H:%M')
+        
+        fecha_aprob = None
+        if r.fecha_aprobacion:
+            fecha_aprob = (r.fecha_aprobacion - timedelta(hours=4)).strftime('%d/%m/%Y %H:%M')
+        
         resultado.append({
-            'id': r.id, 'cliente_nombre': r.cliente_nombre,
+            'id': r.id,
+            'cliente_nombre': r.cliente_nombre,
+            'cliente_telefono': r.cliente_telefono or 'No registrado',
+            'cliente_email': r.cliente_email or 'No registrado',
             'habitacion_nombre': hab.nombre if hab else 'N/A',
             'fecha_entrada': str(r.fecha_entrada),
             'fecha_salida': str(r.fecha_salida),
-            'total': r.total, 'estado': r.estado,
-            'metodo_pago': r.metodo_pago or '-'
+            'total': r.total,
+            'estado': r.estado,
+            'metodo_pago': r.metodo_pago or '-',
+            'solo_reserva': r.solo_reserva,
+            'fecha_expiracion': expiracion,
+            'aprobado_por': r.aprobado_por,
+            'fecha_aprobacion': fecha_aprob,
+            'comentario_rechazo': r.comentario_rechazo,
+            'fecha_reserva': (r.fecha_reserva - timedelta(hours=4)).strftime('%d/%m/%Y %H:%M')
         })
     return jsonify(resultado)
 
@@ -606,7 +642,6 @@ def calendario_agencia():
     
     total_habitaciones = Habitacion.query.filter_by(posada_id=1).count()
     
-    # ✅ CORREGIDO: Sin cast(Date) para SQLite
     reservas = Reserva.query.filter(
         Reserva.posada_id == 1,
         Reserva.estado != 'cancelada',
