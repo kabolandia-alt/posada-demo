@@ -493,7 +493,7 @@ def reservas_pendientes():
         'total': r.total, 'metodo_pago': r.metodo_pago,
         'comprobante': r.comprobante,
         'solo_reserva': r.solo_reserva,
-        'fecha_expiracion': (r.fecha_expiracion - timedelta(hours=4)).strftime('%d/%m/%Y %H:%M') if r.fecha_expiracion else None,
+        'fecha_expiracion': r.fecha_expiracion.strftime('%d/%m/%Y %H:%M') if r.fecha_expiracion else 'Sin expiración',
         'aprobado_por': r.aprobado_por,
         'fecha_aprobacion': (r.fecha_aprobacion - timedelta(hours=4)).strftime('%d/%m/%Y %H:%M') if r.fecha_aprobacion else None,
         'comentario_rechazo': r.comentario_rechazo
