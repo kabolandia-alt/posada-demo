@@ -5,7 +5,6 @@ from flask_login import LoginManager, UserMixin, login_user, login_required, log
 from datetime import datetime, timedelta
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
-from sqlalchemy import cast, Date
 import json
 import csv
 from io import StringIO
@@ -283,13 +282,13 @@ def verificar_disponibilidad(posada_id):
         
         todas_habitaciones = Habitacion.query.filter_by(posada_id=posada_id, estado='disponible').all()
         
-        # ✅ CORREGIDO: <= y >= para incluir mismo día
+        # ✅ CORREGIDO: Sin cast(Date) para SQLite
         reservas_activas = Reserva.query.filter(
             Reserva.posada_id == posada_id,
             Reserva.habitacion_id.isnot(None),
             Reserva.estado != 'cancelada',
-            cast(Reserva.fecha_entrada, Date) <= salida,
-            cast(Reserva.fecha_salida, Date) >= entrada
+            Reserva.fecha_entrada <= salida,
+            Reserva.fecha_salida >= entrada
         ).all()
         
         ocupadas_ids = list(set([r.habitacion_id for r in reservas_activas]))
@@ -328,12 +327,12 @@ def crear_reserva():
         if not hab:
             return jsonify({'error': 'Habitacion no encontrada'}), 404
         
-        # ✅ CORREGIDO: <= y >= para incluir mismo día
+        # ✅ CORREGIDO: Sin cast(Date) para SQLite
         conflicto = Reserva.query.filter(
             Reserva.habitacion_id == hab.id,
             Reserva.estado != 'cancelada',
-            cast(Reserva.fecha_entrada, Date) <= salida,
-            cast(Reserva.fecha_salida, Date) >= entrada
+            Reserva.fecha_entrada <= salida,
+            Reserva.fecha_salida >= entrada
         ).first()
         if conflicto:
             return jsonify({'error': 'Ya no está disponible'}), 409
@@ -450,12 +449,12 @@ def calendario_completo():
     
     total_habitaciones = Habitacion.query.filter_by(posada_id=current_user.posada_id).count()
     
-    # ✅ CORREGIDO: <= y >= para incluir mismo día
+    # ✅ CORREGIDO: Sin cast(Date) para SQLite
     reservas = Reserva.query.filter(
         Reserva.posada_id == current_user.posada_id,
         Reserva.estado != 'cancelada',
-        cast(Reserva.fecha_entrada, Date) <= fin,
-        cast(Reserva.fecha_salida, Date) >= inicio
+        Reserva.fecha_entrada <= fin,
+        Reserva.fecha_salida >= inicio
     ).all()
     
     ocupacion_por_dia = {}
@@ -494,7 +493,10 @@ def reservas_pendientes():
         'total': r.total, 'metodo_pago': r.metodo_pago,
         'comprobante': r.comprobante,
         'solo_reserva': r.solo_reserva,
-        'fecha_expiracion': (r.fecha_expiracion - timedelta(hours=4)).strftime('%d/%m/%Y %H:%M') if r.fecha_expiracion else None
+        'fecha_expiracion': (r.fecha_expiracion - timedelta(hours=4)).strftime('%d/%m/%Y %H:%M') if r.fecha_expiracion else None,
+        'aprobado_por': r.aprobado_por,
+        'fecha_aprobacion': (r.fecha_aprobacion - timedelta(hours=4)).strftime('%d/%m/%Y %H:%M') if r.fecha_aprobacion else None,
+        'comentario_rechazo': r.comentario_rechazo
     } for r in reservas])
 
 @app.route('/api/todas-reservas')
@@ -526,8 +528,8 @@ def ingresos_mes():
     reservas = Reserva.query.filter(
         Reserva.posada_id == current_user.posada_id,
         Reserva.estado == 'confirmada',
-        cast(Reserva.fecha_reserva, Date) >= inicio_mes,
-        cast(Reserva.fecha_reserva, Date) <= fin_mes
+        Reserva.fecha_entrada >= inicio_mes,
+        Reserva.fecha_entrada <= fin_mes
     ).all()
     return jsonify({'total': round(sum(r.total for r in reservas), 2), 'cantidad': len(reservas)})
 
@@ -604,12 +606,12 @@ def calendario_agencia():
     
     total_habitaciones = Habitacion.query.filter_by(posada_id=1).count()
     
-    # ✅ CORREGIDO: <= y >= para incluir mismo día
+    # ✅ CORREGIDO: Sin cast(Date) para SQLite
     reservas = Reserva.query.filter(
         Reserva.posada_id == 1,
         Reserva.estado != 'cancelada',
-        cast(Reserva.fecha_entrada, Date) <= fin,
-        cast(Reserva.fecha_salida, Date) >= inicio
+        Reserva.fecha_entrada <= fin,
+        Reserva.fecha_salida >= inicio
     ).all()
     
     ocupacion_por_dia = {}
@@ -645,8 +647,8 @@ def exportar_reservas():
     
     reservas = Reserva.query.filter(
         Reserva.posada_id == current_user.posada_id,
-        cast(Reserva.fecha_entrada, Date) >= inicio_mes,
-        cast(Reserva.fecha_entrada, Date) <= fin_mes
+        Reserva.fecha_entrada >= inicio_mes,
+        Reserva.fecha_entrada <= fin_mes
     ).order_by(Reserva.fecha_entrada).all()
     
     output = StringIO()
@@ -671,8 +673,8 @@ def exportar_ingresos():
     reservas = Reserva.query.filter(
         Reserva.posada_id == current_user.posada_id,
         Reserva.estado == 'confirmada',
-        cast(Reserva.fecha_reserva, Date) >= inicio_mes,
-        cast(Reserva.fecha_reserva, Date) <= fin_mes
+        Reserva.fecha_reserva >= inicio_mes,
+        Reserva.fecha_reserva <= fin_mes
     ).order_by(Reserva.fecha_reserva).all()
     
     output = StringIO()
