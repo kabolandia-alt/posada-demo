@@ -107,6 +107,12 @@ class BloqueoTemporal(db.Model):
     expira_en = db.Column(db.DateTime)
     activo = db.Column(db.Boolean, default=True)
 
+class Configuracion(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    clave = db.Column(db.String(50), unique=True)
+    valor = db.Column(db.String(100))
+    posada_id = db.Column(db.Integer, db.ForeignKey('posada.id'))
+
 def enviar_email(destinatario, asunto, mensaje):
     try:
         remitente = "tusistema@gmail.com"
@@ -344,7 +350,16 @@ def crear_reserva():
         
         solo_reserva = metodo_pago == 'solo_reserva'
         estado_inicial = 'pendiente' if solo_reserva else 'pago_reportado'
-        fecha_expiracion = datetime.utcnow() + timedelta(minutes=40) if solo_reserva else None
+        
+        # Obtener tiempo de expiración configurado
+        minutos_expiracion = 40
+        if solo_reserva:
+            config = Configuracion.query.filter_by(
+                posada_id=hab.posada_id, clave='tiempo_expiracion'
+            ).first()
+            if config:
+                minutos_expiracion = int(config.valor)
+        fecha_expiracion = datetime.utcnow() + timedelta(minutes=minutos_expiracion) if solo_reserva else None
         
         reserva = Reserva(
             cliente_nombre=cliente_nombre,
@@ -371,7 +386,7 @@ def crear_reserva():
         
         mensaje_extra = ''
         if solo_reserva:
-            mensaje_extra = '\n\n⏰ IMPORTANTE: Esta reserva expira en 40 minutos si no se realiza el pago.'
+            mensaje_extra = f'\n\n⏰ IMPORTANTE: Esta reserva expira en {minutos_expiracion} minutos si no se realiza el pago.'
         
         return jsonify({
             'message': 'Reserva creada exitosamente' + mensaje_extra,
@@ -712,6 +727,36 @@ def validar_pago(reserva_id):
         return jsonify({'message': 'Actualizado'})
     return jsonify({'error': 'No encontrada'}), 404
 
+# ============ CONFIGURACIÓN ============
+@app.route('/api/configuracion', methods=['GET'])
+@login_required
+def obtener_configuracion():
+    configs = Configuracion.query.filter_by(posada_id=current_user.posada_id).all()
+    resultado = {}
+    for c in configs:
+        resultado[c.clave] = c.valor
+    return jsonify(resultado)
+
+@app.route('/api/configuracion', methods=['POST'])
+@login_required
+def guardar_configuracion():
+    data = request.json
+    for clave, valor in data.items():
+        config = Configuracion.query.filter_by(
+            posada_id=current_user.posada_id, clave=clave
+        ).first()
+        if config:
+            config.valor = str(valor)
+        else:
+            config = Configuracion(
+                clave=clave,
+                valor=str(valor),
+                posada_id=current_user.posada_id
+            )
+            db.session.add(config)
+    db.session.commit()
+    return jsonify({'message': 'Configuración guardada'})
+
 # ============ PORTAL DE AGENCIAS ============
 @app.route('/agencia/login', methods=['GET', 'POST'])
 def login_agencia():
@@ -802,6 +847,9 @@ def reiniciar_bd():
                          password_hash=generate_password_hash('agencia123'),
                          posada_id=posada.id)
         db.session.add(agencia)
+        
+        config_default = Configuracion(clave='tiempo_expiracion', valor='40', posada_id=posada.id)
+        db.session.add(config_default)
         db.session.commit()
         
         habs = [
@@ -833,6 +881,9 @@ with app.app_context():
                          password_hash=generate_password_hash('agencia123'),
                          posada_id=posada.id)
         db.session.add(agencia)
+        
+        config_default = Configuracion(clave='tiempo_expiracion', valor='40', posada_id=posada.id)
+        db.session.add(config_default)
         db.session.commit()
         
         habs = [
