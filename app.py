@@ -111,13 +111,11 @@ class Configuracion(db.Model):
     posada_id = db.Column(db.Integer, db.ForeignKey('posada.id'))
 
 def enviar_email(destinatario, asunto, mensaje):
-    # Email desactivado - Se activará con servidor pago
     print(f"📧 Email pendiente para: {destinatario}")
     print(f"   Asunto: {asunto}")
     return True
 
 def cancelar_reservas_expiradas():
-    """Cancela reservas 'solo_reserva' que hayan expirado"""
     ahora = datetime.utcnow()
     reservas_expiradas = Reserva.query.filter(
         Reserva.solo_reserva == True,
@@ -254,7 +252,6 @@ def eliminar_habitacion(id):
 @app.route('/api/disponibilidad/<int:posada_id>')
 def verificar_disponibilidad(posada_id):
     try:
-        # Cancelar reservas expiradas antes de verificar
         cancelar_reservas_expiradas()
         
         entrada_str = request.args.get('entrada')
@@ -519,12 +516,9 @@ def reservas_pendientes():
         'comprobante': r.comprobante,
         'datos_huespedes': r.datos_huespedes,
         'solo_reserva': r.solo_reserva,
- 'solo_reserva': r.solo_reserva,
-'fecha_expiracion': (r.fecha_expiracion - timedelta(hours=4)).strftime('%d/%m/%Y %H:%M') if r.fecha_expiracion else None,
-'aprobado_por': r.aprobado_por,
-'fecha_aprobacion': (r.fecha_aprobacion - timedelta(hours=4)).strftime('%d/%m/%Y %H:%M') if r.fecha_aprobacion else None,
-'comentario_rechazo': r.comentario_rechazo,
-'fecha_reserva': (r.fecha_reserva - timedelta(hours=4)).strftime('%d/%m/%Y %H:%M') if r.fecha_aprobacion else None,
+        'fecha_expiracion': (r.fecha_expiracion - timedelta(hours=4)).strftime('%d/%m/%Y %H:%M') if r.fecha_expiracion else None,
+        'aprobado_por': r.aprobado_por,
+        'fecha_aprobacion': (r.fecha_aprobacion - timedelta(hours=4)).strftime('%d/%m/%Y %H:%M') if r.fecha_aprobacion else None,
         'comentario_rechazo': r.comentario_rechazo,
         'fecha_reserva': (r.fecha_reserva - timedelta(hours=4)).strftime('%d/%m/%Y %H:%M')
     } for r in reservas])
@@ -556,6 +550,9 @@ def todas_reservas():
             'datos_huespedes': r.datos_huespedes,
             'solo_reserva': r.solo_reserva,
             'fecha_expiracion': (r.fecha_expiracion - timedelta(hours=4)).strftime('%d/%m/%Y %H:%M') if r.fecha_expiracion else None,
+            'aprobado_por': r.aprobado_por,
+            'fecha_aprobacion': (r.fecha_aprobacion - timedelta(hours=4)).strftime('%d/%m/%Y %H:%M') if r.fecha_aprobacion else None,
+            'comentario_rechazo': r.comentario_rechazo,
             'fecha_reserva': (r.fecha_reserva - timedelta(hours=4)).strftime('%d/%m/%Y %H:%M')
         })
     
@@ -711,7 +708,6 @@ def validar_pago(reserva_id):
         return jsonify({'message': 'Actualizado correctamente'})
     return jsonify({'error': 'No encontrada'}), 404
 
-# ============ CONFIGURACIÓN ============
 @app.route('/api/configuracion', methods=['GET'])
 @login_required
 def obtener_configuracion():
@@ -741,7 +737,6 @@ def guardar_configuracion():
     db.session.commit()
     return jsonify({'message': 'Configuración guardada'})
 
-# ============ PORTAL DE AGENCIAS ============
 @app.route('/agencia/login', methods=['GET', 'POST'])
 def login_agencia():
     if request.method == 'POST':
