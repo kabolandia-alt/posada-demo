@@ -640,7 +640,8 @@ def calendario_agencia():
     inicio = datetime(año, mes, 1).date()
     fin = (datetime(año + 1, 1, 1) if mes == 12 else datetime(año, mes + 1, 1)).date() - timedelta(days=1)
     
-    total_habitaciones = Habitacion.query.filter_by(posada_id=1).count()
+    todas_habitaciones = Habitacion.query.filter_by(posada_id=1).all()
+    total_habitaciones = len(todas_habitaciones)
     
     reservas = Reserva.query.filter(
         Reserva.posada_id == 1,
@@ -652,11 +653,26 @@ def calendario_agencia():
     ocupacion_por_dia = {}
     for dia in range(1, fin.day + 1):
         fecha = datetime(año, mes, dia).date()
-        ocupadas = sum(1 for r in reservas if r.fecha_entrada <= fecha <= r.fecha_salida)
-        ocupacion_por_dia[fecha.strftime('%Y-%m-%d')] = {
-            'ocupadas': ocupadas,
-            'disponibles': total_habitaciones - ocupadas,
-            'total': total_habitaciones
+        fecha_str = fecha.strftime('%Y-%m-%d')
+        
+        # Encontrar qué habitaciones están ocupadas en esta fecha
+        habs_ocupadas = []
+        for r in reservas:
+            if r.fecha_entrada <= fecha <= r.fecha_salida:
+                if r.habitacion_id not in habs_ocupadas:
+                    habs_ocupadas.append(r.habitacion_id)
+        
+        # Encontrar disponibles
+        habs_disponibles = [h for h in todas_habitaciones if h.id not in habs_ocupadas]
+        
+        ocupacion_por_dia[fecha_str] = {
+            'ocupadas': len(habs_ocupadas),
+            'disponibles': len(habs_disponibles),
+            'total': total_habitaciones,
+            'habitaciones_ocupadas': [{'id': h.id, 'nombre': h.nombre, 'precio_base': h.precio_base} 
+                                      for h in todas_habitaciones if h.id in habs_ocupadas],
+            'habitaciones_disponibles': [{'id': h.id, 'nombre': h.nombre, 'precio_base': h.precio_base} 
+                                         for h in habs_disponibles]
         }
     
     return jsonify({
@@ -665,7 +681,7 @@ def calendario_agencia():
         'mes': mes, 'año': año,
         'ocupacion_por_dia': ocupacion_por_dia,
         'habitaciones': [{'id': h.id, 'nombre': h.nombre, 'tipo': h.tipo, 'precio_base': h.precio_base} 
-                        for h in Habitacion.query.filter_by(posada_id=1).all()]
+                        for h in todas_habitaciones]
     })
 
 # ============================================================

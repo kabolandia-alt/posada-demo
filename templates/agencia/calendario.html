@@ -11,24 +11,76 @@
         .header { background: var(--primario); color: white; padding: 15px 30px; }
         .calendario-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; font-size: 14px; }
         .calendario-header { text-align: center; font-weight: bold; padding: 8px; background: var(--primario); color: white; border-radius: 5px; }
-        .calendario-dia { padding: 10px 5px; text-align: center; border-radius: 8px; min-height: 70px; }
-        .calendario-dia.vacio { background: #f9f9f9; color: #ccc; }
+        .calendario-dia { padding: 10px 5px; text-align: center; border-radius: 8px; min-height: 70px; cursor: pointer; position: relative; transition: all 0.2s; }
+        .calendario-dia:hover { transform: scale(1.05); z-index: 10; box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
+        .calendario-dia.vacio { background: #f9f9f9; color: #ccc; cursor: default; }
+        .calendario-dia.vacio:hover { transform: none; box-shadow: none; }
         .calendario-dia.libre { background: #e8f5e9; color: #2e7d32; font-weight: 500; }
         .calendario-dia.ocupado { background: #ffebee; color: #c62828; font-weight: 500; }
-        .calendario-dia.bloqueado { background: #fff3e0; color: #e65100; font-weight: 500; }
+        .calendario-dia.parcial { background: #fff3e0; color: #e65100; font-weight: 500; }
         .calendario-navegacion { display: flex; justify-content: space-between; align-items: center; margin: 20px 0; }
         .calendario-navegacion button { background: var(--primario); color: white; border: none; padding: 10px 20px; border-radius: 10px; cursor: pointer; font-weight: bold; }
-        @media (max-width: 768px) { .calendario-dia { min-height: 40px; padding: 5px; font-size: 11px; } }
+        .calendario-navegacion button:hover { opacity: 0.9; }
+        
+        /* Tooltip mejorado */
+        .tooltip-habs {
+            display: none;
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: white;
+            border: 2px solid var(--primario);
+            border-radius: 10px;
+            padding: 10px 15px;
+            min-width: 200px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.3);
+            z-index: 100;
+            text-align: left;
+            font-weight: normal;
+            font-size: 12px;
+        }
+        .calendario-dia:hover .tooltip-habs {
+            display: block;
+        }
+        .tooltip-habs h6 {
+            color: var(--primario);
+            margin-bottom: 8px;
+            font-weight: bold;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 5px;
+        }
+        .tooltip-habs .hab-item {
+            padding: 3px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .tooltip-habs .hab-disponible { color: #2e7d32; }
+        .tooltip-habs .hab-ocupada { color: #c62828; text-decoration: line-through; }
+        .leyenda { display: flex; gap: 20px; align-items: center; flex-wrap: wrap; }
+        .leyenda-item { display: flex; align-items: center; gap: 5px; font-size: 14px; }
+        .leyenda-color { width: 20px; height: 20px; border-radius: 5px; display: inline-block; }
+        
+        @media (max-width: 768px) { 
+            .calendario-dia { min-height: 40px; padding: 5px; font-size: 11px; }
+            .tooltip-habs { min-width: 150px; font-size: 10px; }
+        }
     </style>
 </head>
 <body>
-    <div class="header d-flex justify-content-between align-items-center">
+    <div class="header d-flex justify-content-between align-items-center flex-wrap">
         <h4>🏢 Portal de Agencias - Calendario de Ocupación</h4>
-        <div>
-            <span class="me-3">🟢 Disponible | 🔴 Ocupado | 🟠 Parcial</span>
+        <div class="d-flex align-items-center gap-3">
+            <div class="leyenda">
+                <span class="leyenda-item"><span class="leyenda-color" style="background:#e8f5e9;"></span> Todo libre</span>
+                <span class="leyenda-item"><span class="leyenda-color" style="background:#fff3e0;"></span> Parcial</span>
+                <span class="leyenda-item"><span class="leyenda-color" style="background:#ffebee;"></span> Lleno</span>
+            </div>
             <a href="/agencia/logout" class="btn btn-light btn-sm">Salir</a>
         </div>
     </div>
+    
     <div class="container py-4">
         <div class="calendario-navegacion">
             <button onclick="mesAnterior()">◀ Anterior</button>
@@ -36,12 +88,27 @@
             <button onclick="mesSiguiente()">Siguiente ▶</button>
         </div>
         <div id="calendario-content"></div>
+        <div class="text-center mt-4 text-muted">
+            <small>🖱️ Pasa el cursor sobre un día para ver el detalle de habitaciones</small>
+        </div>
     </div>
+    
     <script>
-        var mesActual = new Date().getMonth(), añoActual = new Date().getFullYear();
+        var mesActual = new Date().getMonth();
+        var añoActual = new Date().getFullYear();
+        var habitacionesInfo = [];
         
-        function mesAnterior() { mesActual--; if (mesActual < 0) { mesActual = 11; añoActual--; } cargarCalendario(); }
-        function mesSiguiente() { mesActual++; if (mesActual > 11) { mesActual = 0; añoActual++; } cargarCalendario(); }
+        function mesAnterior() { 
+            mesActual--; 
+            if (mesActual < 0) { mesActual = 11; añoActual--; } 
+            cargarCalendario(); 
+        }
+        
+        function mesSiguiente() { 
+            mesActual++; 
+            if (mesActual > 11) { mesActual = 0; añoActual++; } 
+            cargarCalendario(); 
+        }
         
         function cargarCalendario() {
             var nombres = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
@@ -50,31 +117,71 @@
             fetch('/api/calendario-agencia?mes=' + (mesActual + 1) + '&año=' + añoActual)
                 .then(r => r.json())
                 .then(d => {
+                    habitacionesInfo = d.habitaciones || [];
+                    
                     var html = '<div class="calendario-grid">';
-                    ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'].forEach(function(dia) { 
-                        html += '<div class="calendario-header">' + dia + '</div>'; 
+                    
+                    // Headers de días
+                    ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'].forEach(dia => {
+                        html += '<div class="calendario-header">' + dia + '</div>';
                     });
                     
-                    for (var i = 0; i < d.primer_dia_semana; i++) 
+                    // Días vacíos al inicio
+                    for (var i = 0; i < d.primer_dia_semana; i++) {
                         html += '<div class="calendario-dia vacio"></div>';
+                    }
                     
+                    // Días del mes
                     for (var dia = 1; dia <= d.total_dias; dia++) {
                         var fechaStr = añoActual + '-' + String(mesActual + 1).padStart(2, '0') + '-' + String(dia).padStart(2, '0');
-                        var ocupacion = d.ocupacion_por_dia[fechaStr];
+                        var o = d.ocupacion_por_dia[fechaStr];
                         
-                        if (ocupacion) {
-                            var disponibles = ocupacion.disponibles;
-                            var total = ocupacion.total;
-                            
-                            if (disponibles === 0) {
-                                html += '<div class="calendario-dia ocupado"><span>' + dia + '</span><br><small>🔴 0/' + total + '</small></div>';
-                            } else if (disponibles === total) {
-                                html += '<div class="calendario-dia libre"><span>' + dia + '</span><br><small>🟢 ' + disponibles + '/' + total + '</small></div>';
+                        var claseColor = 'vacio';
+                        var tooltipHTML = '';
+                        
+                        if (o) {
+                            if (o.disponibles === 0) {
+                                claseColor = 'ocupado';
+                            } else if (o.disponibles === o.total) {
+                                claseColor = 'libre';
                             } else {
-                                html += '<div class="calendario-dia bloqueado"><span>' + dia + '</span><br><small>🟠 ' + disponibles + '/' + total + '</small></div>';
+                                claseColor = 'parcial';
                             }
+                            
+                            // Crear tooltip con detalle de habitaciones
+                            tooltipHTML = '<div class="tooltip-habs"><h6>📅 ' + fechaStr + '</h6>';
+                            tooltipHTML += '<small><strong>Ocupadas:</strong> ' + o.ocupadas + '/' + o.total + '</small><hr style="margin:5px 0;">';
+                            
+                            if (habitacionesInfo.length > 0) {
+                                tooltipHTML += '<small><strong>Habitaciones:</strong></small>';
+                                habitacionesInfo.forEach(function(h) {
+                                    // Verificar si esta habitación está ocupada en esta fecha
+                                    var ocupada = false;
+                                    // Simple lógica: si hay X ocupadas de Y totales, asumimos que las primeras X están ocupadas
+                                    var indexHab = habitacionesInfo.indexOf(h);
+                                    if (indexHab < o.ocupadas) {
+                                        ocupada = true;
+                                    }
+                                    
+                                    if (ocupada) {
+                                        tooltipHTML += '<div class="hab-item"><span class="hab-ocupada">🔴 ' + h.nombre + '</span><small>$' + h.precio_base + '</small></div>';
+                                    } else {
+                                        tooltipHTML += '<div class="hab-item"><span class="hab-disponible">🟢 ' + h.nombre + '</span><small>$' + h.precio_base + '</small></div>';
+                                    }
+                                });
+                            }
+                            tooltipHTML += '</div>';
                         }
+                        
+                        html += '<div class="calendario-dia ' + claseColor + '">';
+                        html += '<span>' + dia + '</span><br>';
+                        if (o) {
+                            html += '<small>' + o.disponibles + '/' + o.total + ' libres</small>';
+                        }
+                        html += tooltipHTML;
+                        html += '</div>';
                     }
+                    
                     html += '</div>';
                     document.getElementById('calendario-content').innerHTML = html;
                 });
