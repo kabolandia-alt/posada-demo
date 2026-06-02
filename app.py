@@ -519,9 +519,12 @@ def reservas_pendientes():
         'comprobante': r.comprobante,
         'datos_huespedes': r.datos_huespedes,
         'solo_reserva': r.solo_reserva,
-        'fecha_expiracion': (r.fecha_expiracion - timedelta(hours=4)).strftime('%d/%m/%Y %H:%M') if r.fecha_expiracion else None,
-        'aprobado_por': r.aprobado_por,
-        'fecha_aprobacion': (r.fecha_aprobacion - timedelta(hours=4)).strftime('%d/%m/%Y %H:%M') if r.fecha_aprobacion else None,
+ 'solo_reserva': r.solo_reserva,
+'fecha_expiracion': (r.fecha_expiracion - timedelta(hours=4)).strftime('%d/%m/%Y %H:%M') if r.fecha_expiracion else None,
+'aprobado_por': r.aprobado_por,
+'fecha_aprobacion': (r.fecha_aprobacion - timedelta(hours=4)).strftime('%d/%m/%Y %H:%M') if r.fecha_aprobacion else None,
+'comentario_rechazo': r.comentario_rechazo,
+'fecha_reserva': (r.fecha_reserva - timedelta(hours=4)).strftime('%d/%m/%Y %H:%M') if r.fecha_aprobacion else None,
         'comentario_rechazo': r.comentario_rechazo,
         'fecha_reserva': (r.fecha_reserva - timedelta(hours=4)).strftime('%d/%m/%Y %H:%M')
     } for r in reservas])

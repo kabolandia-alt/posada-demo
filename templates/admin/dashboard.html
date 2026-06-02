@@ -402,19 +402,24 @@
                 var html = '';
                 if (d.length === 0) html = '<div class="alert alert-info">📋 No hay reservas registradas</div>';
                 else {
-                    html += '<div class="table-responsive"><table class="table table-striped table-hover"><thead><tr><th>ID</th><th>Cliente</th><th>Habitación</th><th>Entrada</th><th>Salida</th><th>Total</th><th>Estado</th><th>Pago</th></tr></thead><tbody>';
+                    html += '<div class="table-responsive"><table class="table table-striped table-hover"><thead><tr><th>ID</th><th>Cliente</th><th>Habitación</th><th>Entrada</th><th>Salida</th><th>Total</th><th>Estado</th><th>Expira</th><th>Pago</th><th>Info</th></tr></thead><tbody>';
                     d.forEach(function(r) {
                         var estadoColor = r.estado === 'confirmada' ? 'success' : r.estado === 'pago_reportado' ? 'warning' : r.estado === 'pendiente' ? 'info' : r.estado === 'cancelada' ? 'danger' : 'secondary';
-                        html += `<tr>
-                            <td>#${r.id} ${r.solo_reserva ? '⏱️' : ''}</td>
-                            <td><strong>${r.cliente_nombre}</strong><br><small>📞 ${r.cliente_telefono}</small></td>
-                            <td><span class="badge bg-primary">${r.habitacion_nombre || 'N/A'}</span></td>
-                            <td>${r.fecha_entrada}</td>
-                            <td>${r.fecha_salida}</td>
-                            <td><strong>$${r.total}</strong></td>
-                            <td><span class="badge bg-${estadoColor}">${r.estado}</span></td>
-                            <td>${r.metodo_pago || '-'}</td>
-                        </tr>`;
+               html += `<tr>
+    <td>#${r.id} ${r.solo_reserva ? '⏱️' : ''}</td>
+    <td><strong>${r.cliente_nombre}</strong><br><small>📞 ${r.cliente_telefono}</small></td>
+    <td><span class="badge bg-primary">${r.habitacion_nombre || 'N/A'}</span></td>
+    <td>${r.fecha_entrada}</td>
+    <td>${r.fecha_salida}</td>
+    <td><strong>$${r.total}</strong></td>
+    <td><span class="badge bg-${estadoColor}">${r.estado}</span></td>
+    <td><small>${r.fecha_expiracion || '-'}</small></td>
+    <td>${r.metodo_pago || '-'}</td>
+    <td>
+        ${r.comentario_rechazo ? `<small class="text-danger">❌ ${r.comentario_rechazo}</small>` : ''}
+        ${r.aprobado_por ? `<small class="text-success">✅ ${r.aprobado_por}</small>` : ''}
+    </td>
+</tr>`;
                     });
                     html += '</tbody></table></div>';
                 }
