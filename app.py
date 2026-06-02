@@ -46,7 +46,7 @@ class Posada(db.Model):
 class Usuario(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
-    password_hash = db.Column(db.String(120), nullable=False)
+    password_hash = db.Column(db.String(300), nullable=False)
     rol = db.Column(db.String(20), default='admin')
     posada_id = db.Column(db.Integer, db.ForeignKey('posada.id'))
 
@@ -101,7 +101,7 @@ class Agencia(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     nombre = db.Column(db.String(100))
     email = db.Column(db.String(100))
-    password_hash = db.Column(db.String(120))
+    password_hash = db.Column(db.String(300))
     activo = db.Column(db.Boolean, default=True)
     posada_id = db.Column(db.Integer, db.ForeignKey('posada.id'))
 
@@ -296,7 +296,7 @@ def verificar_disponibilidad(posada_id):
         
         todas_habitaciones = Habitacion.query.filter_by(posada_id=posada_id, estado='disponible').all()
         
-        # Reservas activas (no canceladas) con CAST para PostgreSQL
+        # Reservas que BLOQUEAN (NO canceladas)
         reservas_activas = Reserva.query.filter(
             Reserva.posada_id == posada_id,
             Reserva.habitacion_id.isnot(None),
@@ -305,21 +305,8 @@ def verificar_disponibilidad(posada_id):
             cast(Reserva.fecha_salida, Date) > entrada
         ).all()
         
-        # DEBUG
-        print(f"=== DISPONIBILIDAD DEBUG ===")
-        print(f"Fechas: {entrada} → {salida}")
-        print(f"Total habitaciones: {len(todas_habitaciones)}")
-        print(f"Reservas activas: {len(reservas_activas)}")
-        for r in reservas_activas:
-            hab = db.session.get(Habitacion, r.habitacion_id)
-            print(f"  #{r.id}: {hab.nombre if hab else 'N/A'} ({r.estado}) {r.fecha_entrada}→{r.fecha_salida}")
-        
         ocupadas_ids = list(set([r.habitacion_id for r in reservas_activas]))
-        print(f"Ocupadas: {ocupadas_ids}")
-        
         disponibles = [h for h in todas_habitaciones if h.id not in ocupadas_ids]
-        print(f"Disponibles: {[h.nombre for h in disponibles]}")
-        print(f"===========================")
         
         dias = max((salida - entrada).days, 1)
         resultado = []
@@ -367,7 +354,7 @@ def crear_reserva():
         if not hab:
             return jsonify({'error': 'Habitacion no encontrada'}), 404
         
-        # Verificar conflicto con CAST para PostgreSQL
+        # Verificar conflicto
         conflicto = Reserva.query.filter(
             Reserva.habitacion_id == habitacion_id,
             Reserva.estado != 'cancelada',
@@ -549,12 +536,11 @@ def exportar_reservas():
         cast(Reserva.fecha_entrada, Date) >= inicio_mes, cast(Reserva.fecha_entrada, Date) <= fin_mes
     ).order_by(Reserva.fecha_entrada).all()
     output = StringIO(); writer = csv.writer(output)
-    writer.writerow(['ID', 'Cliente', 'Teléfono', 'Email', 'Habitación', 'Check-in', 'Check-out', 'Total USD', 'Estado', 'Pago'])
+    writer.writerow(['ID', 'Cliente', 'Teléfono', 'Habitación', 'Check-in', 'Check-out', 'Total USD', 'Estado', 'Pago'])
     for r in reservas:
         hab = db.session.get(Habitacion, r.habitacion_id)
-        writer.writerow([r.id, r.cliente_nombre, r.cliente_telefono, r.cliente_email,
-                        hab.nombre if hab else 'N/A', str(r.fecha_entrada), str(r.fecha_salida),
-                        r.total, r.estado, r.metodo_pago or '-'])
+        writer.writerow([r.id, r.cliente_nombre, r.cliente_telefono, hab.nombre if hab else 'N/A',
+                        str(r.fecha_entrada), str(r.fecha_salida), r.total, r.estado, r.metodo_pago or '-'])
     output.seek(0)
     return Response(output.getvalue(), mimetype='text/csv',
                    headers={'Content-Disposition': f'attachment;filename=Reservas_{mes}_{año}.csv'})
