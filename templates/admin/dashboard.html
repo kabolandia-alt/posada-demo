@@ -28,7 +28,7 @@
         .calendario-navegacion { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px; }
         .calendario-navegacion button { background: var(--primario); color: white; border: none; padding: 10px 20px; border-radius: 10px; cursor: pointer; font-weight: bold; }
         .pago-pendiente { border-left: 4px solid var(--amarillo); padding: 15px; background: white; border-radius: 10px; margin-bottom: 10px; }
-        
+        .footer { text-align: center; padding: 15px; margin-top: 20px; color: #888; font-size: 12px; border-top: 1px solid #eee; }
         @media (max-width: 768px) {
             .sidebar { min-height: auto; margin-bottom: 15px; border-radius: 10px; }
             .stat-card h2 { font-size: 1.8em; }
@@ -57,6 +57,7 @@
                 </nav>
             </div>
             <div class="col-md-10 p-4">
+                <!-- DASHBOARD -->
                 <div id="seccion-dashboard">
                     <h2 class="mb-4">📊 Dashboard</h2>
                     <div class="row mb-3">
@@ -79,12 +80,14 @@
                     </div>
                 </div>
 
+                <!-- CALENDARIO -->
                 <div id="seccion-calendario" style="display:none;">
                     <h2 class="mb-3">📅 Calendario de Ocupación</h2>
                     <div class="calendario-navegacion"><button onclick="mesAnterior()">◀ Anterior</button><h3 id="titulo-mes"></h3><button onclick="mesSiguiente()">Siguiente ▶</button></div>
                     <div id="calendario-content" style="overflow-x:auto;"></div>
                 </div>
 
+                <!-- HABITACIONES -->
                 <div id="seccion-habitaciones" style="display:none;">
                     <div class="d-flex justify-content-between align-items-center mb-3"><h2>🛏️ Gestión de Habitaciones</h2><button class="btn btn-success btn-accion" onclick="toggleFormHabitacion()">+ Nueva</button></div>
                     <div id="form-nueva-habitacion" class="section-panel" style="display:none;">
@@ -106,18 +109,24 @@
                     <div id="lista-habitaciones" class="row"></div>
                 </div>
 
+                <!-- TARIFAS -->
                 <div id="seccion-tarifas" style="display:none;">
                     <h2 class="mb-3">💲 Tarifas Especiales</h2>
                     <div class="section-panel">
-                        <div class="alert alert-info">💡 <strong>Tipos de tarifa:</strong><br>
-                        📅 <strong>Rango de Fechas:</strong> Aplica a un período (ej: 15 Dic - 15 Ene)<br>
-                        📆 <strong>Días de la Semana:</strong> Aplica a días específicos cada semana (ej: Fines de semana)<br>
-                        🎯 <strong>Días Específicos:</strong> Aplica solo a ciertos días (ej: Martes a Jueves más barato)<br>
-                        💲 Usa <strong>+</strong> para aumentar y <strong>-</strong> para descontar del precio base</div>
+                        <div class="alert alert-info">
+                            💡 <strong>Tipos de tarifa:</strong><br>
+                            📅 <strong>Rango de Fechas:</strong> Aplica a un período (ej: 15 Dic - 15 Ene)<br>
+                            📆 <strong>Días de la Semana:</strong> Aplica a días específicos cada semana (ej: Fines de semana)<br>
+                            🎯 <strong>Días Específicos:</strong> Aplica solo a ciertos días (ej: Mar-Jue más barato)<br>
+                            💲 Usa <strong>+</strong> para aumentar y <strong>-</strong> para descontar del precio base
+                        </div>
                         <form id="formTarifa">
-                            <div class="tarifa-form-row">
-                                <div><label class="form-label">Nombre</label><input type="text" name="nombre" class="form-control" placeholder="Ej: Navidad 2024" required></div>
-                                <div>
+                            <div class="row g-3 mb-3">
+                                <div class="col-md-3">
+                                    <label class="form-label">Nombre *</label>
+                                    <input type="text" name="nombre" class="form-control" placeholder="Ej: Navidad 2024" required>
+                                </div>
+                                <div class="col-md-3">
                                     <label class="form-label">Tipo Tarifa *</label>
                                     <select name="tipo" id="tipoTarifa" class="form-select" required onchange="cambiarTipoTarifa()">
                                         <option value="rango_fechas">📅 Rango de Fechas</option>
@@ -125,22 +134,38 @@
                                         <option value="dias_especificos">🎯 Días Específicos</option>
                                     </select>
                                 </div>
-                                <div><label class="form-label">💲 Ajuste/noche ($)</label><input type="number" name="precio_extra" class="form-control" step="0.01" value="20" required><small class="text-muted">+ aumenta, - descuenta</small></div>
-                                <div id="divFechas"><label class="form-label">📅 Desde</label><input type="date" name="fecha_inicio" id="fecha_inicio" class="form-control" required></div>
-                                <div id="divFechasFin"><label class="form-label">📅 Hasta</label><input type="date" name="fecha_fin" id="fecha_fin" class="form-control" required></div>
-                                <div id="divDias" style="display:none;">
-                                    <label class="form-label">Días a aplicar</label>
-                                    <div class="d-flex flex-wrap gap-1">
-                                        <label class="me-2"><input type="checkbox" name="dia" value="0"> Lun</label>
-                                        <label class="me-2"><input type="checkbox" name="dia" value="1"> Mar</label>
-                                        <label class="me-2"><input type="checkbox" name="dia" value="2"> Mié</label>
-                                        <label class="me-2"><input type="checkbox" name="dia" value="3"> Jue</label>
-                                        <label class="me-2"><input type="checkbox" name="dia" value="4"> Vie</label>
-                                        <label class="me-2"><input type="checkbox" name="dia" value="5"> Sáb</label>
-                                        <label class="me-2"><input type="checkbox" name="dia" value="6"> Dom</label>
+                                <div class="col-md-3">
+                                    <label class="form-label">💲 Ajuste/noche ($)</label>
+                                    <input type="number" name="precio_extra" class="form-control" step="0.01" value="20" required>
+                                    <small class="text-muted">+ aumenta, - descuenta</small>
+                                </div>
+                                <div class="col-md-3 d-flex align-items-end">
+                                    <button type="submit" class="btn btn-warning btn-accion w-100">+ Agregar Tarifa</button>
+                                </div>
+                            </div>
+                            <div class="row g-3" id="divFechasContainer">
+                                <div class="col-md-3" id="divFechas">
+                                    <label class="form-label">📅 Fecha Desde</label>
+                                    <input type="date" name="fecha_inicio" id="fecha_inicio" class="form-control" required>
+                                </div>
+                                <div class="col-md-3" id="divFechasFin">
+                                    <label class="form-label">📅 Fecha Hasta</label>
+                                    <input type="date" name="fecha_fin" id="fecha_fin" class="form-control" required>
+                                </div>
+                            </div>
+                            <div class="row g-3" id="divDias" style="display:none;">
+                                <div class="col-12">
+                                    <label class="form-label">🗓️ Días a aplicar:</label>
+                                    <div class="d-flex flex-wrap gap-2">
+                                        <label class="me-3"><input type="checkbox" name="dia" value="0"> Lun</label>
+                                        <label class="me-3"><input type="checkbox" name="dia" value="1"> Mar</label>
+                                        <label class="me-3"><input type="checkbox" name="dia" value="2"> Mié</label>
+                                        <label class="me-3"><input type="checkbox" name="dia" value="3"> Jue</label>
+                                        <label class="me-3"><input type="checkbox" name="dia" value="4"> Vie</label>
+                                        <label class="me-3"><input type="checkbox" name="dia" value="5"> Sáb</label>
+                                        <label class="me-3"><input type="checkbox" name="dia" value="6"> Dom</label>
                                     </div>
                                 </div>
-                                <div><button type="submit" class="btn btn-warning btn-accion">+ Agregar</button></div>
                             </div>
                         </form>
                         <hr>
@@ -148,16 +173,19 @@
                     </div>
                 </div>
 
+                <!-- PAGOS -->
                 <div id="seccion-pagos" style="display:none;">
                     <h2 class="mb-3">💰 Pagos Pendientes</h2>
                     <div id="lista-pagos"></div>
                 </div>
 
+                <!-- RESERVAS -->
                 <div id="seccion-reservas" style="display:none;">
                     <h2 class="mb-3">📋 Todas las Reservas</h2>
                     <div id="lista-reservas"></div>
                 </div>
 
+                <!-- CONFIGURACIÓN -->
                 <div id="seccion-configuracion" style="display:none;">
                     <h2 class="mb-3">⚙️ Configuración del Sistema</h2>
                     <div class="section-panel">
@@ -171,10 +199,17 @@
                         <div class="alert alert-success" id="msgConfig" style="display:none;"></div>
                     </div>
                 </div>
+
+                <!-- FOOTER -->
+                <div class="footer">
+                    © 2026 <strong>Nova Tech</strong> - Todos los derechos reservados<br>
+                    Desarrollado por <strong>José García</strong> | Protegido por leyes de propiedad intelectual
+                </div>
             </div>
         </div>
     </div>
 
+    <!-- MODAL EDITAR HABITACIÓN -->
     <div class="modal fade" id="modalEditarHabitacion" tabindex="-1">
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
@@ -317,9 +352,8 @@
         // ============ TARIFAS ============
         function cambiarTipoTarifa() {
             var tipo = document.getElementById('tipoTarifa').value;
-            document.getElementById('divFechas').style.display = tipo === 'rango_fechas' ? 'block' : 'none';
-            document.getElementById('divFechasFin').style.display = tipo === 'rango_fechas' ? 'block' : 'none';
-            document.getElementById('divDias').style.display = tipo !== 'rango_fechas' ? 'block' : 'none';
+            document.getElementById('divFechasContainer').style.display = tipo === 'rango_fechas' ? 'flex' : 'none';
+            document.getElementById('divDias').style.display = tipo !== 'rango_fechas' ? 'flex' : 'none';
             document.getElementById('fecha_inicio').required = tipo === 'rango_fechas';
             document.getElementById('fecha_fin').required = tipo === 'rango_fechas';
         }
@@ -332,16 +366,16 @@
             document.querySelectorAll('input[name="dia"]:checked').forEach(function(cb) { dias.push(cb.value); });
             data.multiplicador = parseFloat(data.precio_extra);
             data.dias_aplicacion = dias.join(',') || null;
-            if (data.tipo === 'rango_fechas' && (!data.fecha_inicio || !data.fecha_fin)) { alert('⚠️ Debe seleccionar fechas'); return; }
+            if (data.tipo === 'rango_fechas' && (!data.fecha_inicio || !data.fecha_fin)) { alert('⚠️ Debe seleccionar fecha inicio y fin'); return; }
             fetch('/api/tarifas', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) }).then(function() { alert('✅ Tarifa creada!'); cargarTarifas(); });
         });
         
         function cargarTarifas() {
             fetch('/api/tarifas').then(r => r.json()).then(d => {
                 var html = '<h5>Tarifas activas:</h5>';
-                if (d.length === 0) html += '<p class="text-muted">No hay tarifas.</p>';
+                if (d.length === 0) html += '<p class="text-muted">No hay tarifas configuradas.</p>';
                 else d.forEach(function(t) {
-                    var tipoTexto = t.tipo === 'rango_fechas' ? '📅 Rango' : t.tipo === 'dias_semana' ? '📆 Días Semana' : '🎯 Días Específicos';
+                    var tipoTexto = t.tipo === 'rango_fechas' ? '📅 Rango Fechas' : t.tipo === 'dias_semana' ? '📆 Días Semana' : '🎯 Días Específicos';
                     var detalle = '';
                     if (t.tipo === 'rango_fechas') { detalle = t.fecha_inicio + ' → ' + t.fecha_fin; }
                     else {
@@ -350,7 +384,10 @@
                         detalle = diasArr.map(function(d) { return diasNombres[parseInt(d)]; }).join(', ');
                     }
                     var signo = t.multiplicador >= 0 ? '+' : '';
-                    html += '<div class="d-flex justify-content-between p-2 bg-light rounded mb-2"><span><strong>' + t.nombre + '</strong> (' + signo + '$' + t.multiplicador + '/noche) <span class="badge bg-info">' + tipoTexto + '</span></span><span>' + detalle + ' <button class="btn btn-danger btn-sm ms-2" onclick="eliminarTarifa(' + t.id + ')">🗑️</button></span></div>';
+                    html += '<div class="d-flex justify-content-between align-items-center p-2 bg-light rounded mb-2">' +
+                        '<div><strong>' + t.nombre + '</strong> <span class="badge ' + (t.multiplicador >= 0 ? 'bg-danger' : 'bg-success') + '">' + signo + '$' + Math.abs(t.multiplicador) + '/noche</span> <span class="badge bg-info">' + tipoTexto + '</span></div>' +
+                        '<div><span class="me-3">' + detalle + '</span><button class="btn btn-danger btn-sm" onclick="eliminarTarifa(' + t.id + ')">🗑️</button></div>' +
+                        '</div>';
                 });
                 document.getElementById('lista-tarifas').innerHTML = html;
             });
