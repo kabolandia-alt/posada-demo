@@ -5,6 +5,7 @@ from flask_login import LoginManager, UserMixin, login_user, login_required, log
 from datetime import datetime, timedelta
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
+from sqlalchemy import cast, Date
 import json
 import csv
 from io import StringIO
@@ -13,7 +14,16 @@ basedir = os.path.abspath(os.path.dirname(__file__))
 
 app = Flask(__name__, template_folder=os.path.join(basedir, 'templates'))
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'clave_super_secreta_2024')
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'posada.db')
+
+# PostgreSQL o SQLite
+database_url = os.environ.get('DATABASE_URL')
+if database_url:
+    if database_url.startswith('postgres://'):
+        database_url = database_url.replace('postgres://', 'postgresql://', 1)
+    app.config['SQLALCHEMY_DATABASE_URI'] = database_url
+else:
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'posada.db')
+
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['UPLOAD_FOLDER'] = os.path.join(basedir, 'static', 'uploads')
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
@@ -120,6 +130,7 @@ def cancelar_reservas_expiradas():
     reservas_expiradas = Reserva.query.filter(
         Reserva.solo_reserva == True,
         Reserva.estado == 'pendiente',
+        Reserva.fecha_expiracion != None,
         Reserva.fecha_expiracion < ahora
     ).all()
     for r in reservas_expiradas:
@@ -142,9 +153,6 @@ def calcular_tarifa_aplicable(posada_id, fecha):
             if dia_semana in dias:
                 ajuste += t.multiplicador
     return ajuste
-
-# Estados que BLOQUEAN disponibilidad (no cancelada)
-ESTADOS_BLOQUEANTES = ['confirmada', 'pago_reportado', 'pendiente', None, '']
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -268,6 +276,7 @@ def verificar_disponibilidad(posada_id):
         expiradas = Reserva.query.filter(
             Reserva.solo_reserva == True,
             Reserva.estado == 'pendiente',
+            Reserva.fecha_expiracion != None,
             Reserva.fecha_expiracion < ahora
         ).all()
         for r in expiradas:
@@ -285,35 +294,35 @@ def verificar_disponibilidad(posada_id):
         entrada = datetime.strptime(entrada_str, '%Y-%m-%d').date()
         salida = datetime.strptime(salida_str, '%Y-%m-%d').date()
         
-        # TODAS las habitaciones disponibles
-        todas_habitaciones = Habitacion.query.filter_by(
-            posada_id=posada_id,
-            estado='disponible'
-        ).all()
+        todas_habitaciones = Habitacion.query.filter_by(posada_id=posada_id, estado='disponible').all()
         
-        # Reservas que BLOQUEAN (NO canceladas)
+        # Reservas activas (no canceladas) con CAST para PostgreSQL
         reservas_activas = Reserva.query.filter(
             Reserva.posada_id == posada_id,
             Reserva.habitacion_id.isnot(None),
-            Reserva.fecha_entrada < salida,
-            Reserva.fecha_salida > entrada
-        ).filter(
-            (Reserva.estado == 'confirmada') | 
-            (Reserva.estado == 'pago_reportado') | 
-            (Reserva.estado == 'pendiente') |
-            (Reserva.estado == None) |
-            (Reserva.estado == '')
+            Reserva.estado != 'cancelada',
+            cast(Reserva.fecha_entrada, Date) < salida,
+            cast(Reserva.fecha_salida, Date) > entrada
         ).all()
         
-        # IDs de habitaciones ocupadas
-        ocupadas_ids = list(set([r.habitacion_id for r in reservas_activas]))
+        # DEBUG
+        print(f"=== DISPONIBILIDAD DEBUG ===")
+        print(f"Fechas: {entrada} → {salida}")
+        print(f"Total habitaciones: {len(todas_habitaciones)}")
+        print(f"Reservas activas: {len(reservas_activas)}")
+        for r in reservas_activas:
+            hab = db.session.get(Habitacion, r.habitacion_id)
+            print(f"  #{r.id}: {hab.nombre if hab else 'N/A'} ({r.estado}) {r.fecha_entrada}→{r.fecha_salida}")
         
-        # Filtrar disponibles
+        ocupadas_ids = list(set([r.habitacion_id for r in reservas_activas]))
+        print(f"Ocupadas: {ocupadas_ids}")
+        
         disponibles = [h for h in todas_habitaciones if h.id not in ocupadas_ids]
+        print(f"Disponibles: {[h.nombre for h in disponibles]}")
+        print(f"===========================")
         
         dias = max((salida - entrada).days, 1)
         resultado = []
-        
         for h in disponibles:
             total = h.precio_base * dias
             fecha = entrada
@@ -322,20 +331,13 @@ def verificar_disponibilidad(posada_id):
                 total += ajuste
                 fecha += timedelta(days=1)
             resultado.append({
-                'id': h.id,
-                'nombre': h.nombre,
-                'tipo': h.tipo,
-                'capacidad': h.capacidad,
-                'precio_total': round(total, 2),
-                'precio_por_noche': round(total/dias, 2),
-                'descripcion': h.descripcion or '',
+                'id': h.id, 'nombre': h.nombre, 'tipo': h.tipo,
+                'capacidad': h.capacidad, 'precio_total': round(total, 2),
+                'precio_por_noche': round(total/dias, 2), 'descripcion': h.descripcion or '',
                 'servicios': json.loads(h.servicios) if h.servicios else [],
-                'imagen': h.imagen or '',
-                'camas': h.camas or ''
+                'imagen': h.imagen or '', 'camas': h.camas or ''
             })
-        
         return jsonify(resultado)
-    
     except Exception as e:
         print(f"Error en disponibilidad: {e}")
         import traceback
@@ -356,33 +358,24 @@ def crear_reserva():
         metodo_pago = request.form.get('metodo_pago', '')
         datos_huespedes = request.form.get('datos_huespedes', '[]')
         habitacion_id = int(request.form.get('habitacion_id', 0))
-        
         if not fecha_entrada_str or not fecha_salida_str:
             return jsonify({'error': 'Fechas requeridas'}), 400
-            
         entrada = datetime.strptime(fecha_entrada_str, '%Y-%m-%d').date()
         salida = datetime.strptime(fecha_salida_str, '%Y-%m-%d').date()
         dias = max((salida - entrada).days, 1)
-        
         hab = db.session.get(Habitacion, habitacion_id)
         if not hab:
             return jsonify({'error': 'Habitacion no encontrada'}), 404
         
-        # VERIFICAR DISPONIBILIDAD REAL
+        # Verificar conflicto con CAST para PostgreSQL
         conflicto = Reserva.query.filter(
             Reserva.habitacion_id == habitacion_id,
-            Reserva.fecha_entrada < salida,
-            Reserva.fecha_salida > entrada
-        ).filter(
-            (Reserva.estado == 'confirmada') | 
-            (Reserva.estado == 'pago_reportado') | 
-            (Reserva.estado == 'pendiente') |
-            (Reserva.estado == None) |
-            (Reserva.estado == '')
+            Reserva.estado != 'cancelada',
+            cast(Reserva.fecha_entrada, Date) < salida,
+            cast(Reserva.fecha_salida, Date) > entrada
         ).first()
-        
         if conflicto:
-            return jsonify({'error': '❌ Esta habitación ya no está disponible para esas fechas. Por favor seleccione otra.'}), 409
+            return jsonify({'error': '❌ Ya no está disponible'}), 409
         
         total = hab.precio_base * dias
         fecha = entrada
@@ -390,7 +383,6 @@ def crear_reserva():
             ajuste = calcular_tarifa_aplicable(hab.posada_id, fecha)
             total += ajuste
             fecha += timedelta(days=1)
-        
         comprobante_filename = None
         if metodo_pago not in ['efectivo', 'solo_reserva'] and 'comprobante' in request.files:
             file = request.files['comprobante']
@@ -401,66 +393,38 @@ def crear_reserva():
                     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
                     file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
                     comprobante_filename = filename
-                except Exception as e:
-                    print(f"Error guardando comprobante: {e}")
-        
+                except: pass
         solo_reserva = metodo_pago == 'solo_reserva'
         estado_inicial = 'pendiente' if solo_reserva else 'pago_reportado'
-        
         minutos_expiracion = 40
         if solo_reserva:
             config = Configuracion.query.filter_by(posada_id=hab.posada_id, clave='tiempo_expiracion').first()
-            if config:
-                minutos_expiracion = int(config.valor)
-        
+            if config: minutos_expiracion = int(config.valor)
         fecha_expiracion = datetime.utcnow() + timedelta(minutes=minutos_expiracion) if solo_reserva else None
-        
         reserva = Reserva(
-            cliente_nombre=cliente_nombre,
-            cliente_cedula=cliente_cedula,
-            cliente_telefono=cliente_telefono,
-            cliente_email=cliente_email,
-            fecha_entrada=entrada,
-            fecha_salida=salida,
-            adultos=adultos,
-            ninos=ninos,
-            total=round(total, 2),
-            habitacion_id=habitacion_id,
-            posada_id=hab.posada_id,
+            cliente_nombre=cliente_nombre, cliente_cedula=cliente_cedula,
+            cliente_telefono=cliente_telefono, cliente_email=cliente_email,
+            fecha_entrada=entrada, fecha_salida=salida, adultos=adultos, ninos=ninos,
+            total=round(total, 2), habitacion_id=habitacion_id, posada_id=hab.posada_id,
             metodo_pago=metodo_pago if not solo_reserva else 'solo_reserva',
             comprobante=comprobante_filename if not solo_reserva else None,
-            datos_huespedes=datos_huespedes,
-            estado=estado_inicial,
-            solo_reserva=solo_reserva,
-            fecha_expiracion=fecha_expiracion
+            datos_huespedes=datos_huespedes, estado=estado_inicial,
+            solo_reserva=solo_reserva, fecha_expiracion=fecha_expiracion
         )
-        
         db.session.add(reserva)
         db.session.commit()
-        
-        mensaje_extra = ''
-        if solo_reserva:
-            mensaje_extra = f'\n\n⏰ IMPORTANTE: Esta reserva expira en {minutos_expiracion} minutos si no se realiza el pago.'
-        
-        return jsonify({
-            'message': 'Reserva creada exitosamente' + mensaje_extra,
-            'reserva_id': reserva.id,
-            'total': round(total, 2),
-            'solo_reserva': solo_reserva
-        })
-        
+        return jsonify({'message': 'Reserva creada', 'reserva_id': reserva.id, 'total': round(total, 2), 'solo_reserva': solo_reserva})
     except Exception as e:
-        print(f"Error en crear_reserva: {str(e)}")
+        print(f"Error: {e}")
         db.session.rollback()
-        return jsonify({'error': f'Error al crear reserva: {str(e)}'}), 500
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/tarifas', methods=['GET'])
 @login_required
 def obtener_tarifas():
     tarifas = Tarifa.query.filter_by(posada_id=current_user.posada_id).all()
     return jsonify([{
-        'id': t.id, 'nombre': t.nombre, 'tipo': t.tipo,
-        'multiplicador': t.multiplicador,
+        'id': t.id, 'nombre': t.nombre, 'tipo': t.tipo, 'multiplicador': t.multiplicador,
         'fecha_inicio': str(t.fecha_inicio) if t.fecha_inicio else None,
         'fecha_fin': str(t.fecha_fin) if t.fecha_fin else None,
         'dias_aplicacion': t.dias_aplicacion
@@ -471,16 +435,13 @@ def obtener_tarifas():
 def crear_tarifa():
     data = request.json
     tarifa = Tarifa(
-        nombre=data['nombre'],
-        tipo=data.get('tipo', 'rango_fechas'),
+        nombre=data['nombre'], tipo=data.get('tipo', 'rango_fechas'),
         multiplicador=float(data.get('multiplicador', 0)),
         fecha_inicio=datetime.strptime(data['fecha_inicio'], '%Y-%m-%d').date() if data.get('fecha_inicio') else None,
         fecha_fin=datetime.strptime(data['fecha_fin'], '%Y-%m-%d').date() if data.get('fecha_fin') else None,
-        dias_aplicacion=data.get('dias_aplicacion', None),
-        posada_id=current_user.posada_id
+        dias_aplicacion=data.get('dias_aplicacion', None), posada_id=current_user.posada_id
     )
-    db.session.add(tarifa)
-    db.session.commit()
+    db.session.add(tarifa); db.session.commit()
     return jsonify({'message': 'Tarifa creada'})
 
 @app.route('/api/tarifas/<int:id>', methods=['DELETE'])
@@ -488,8 +449,7 @@ def crear_tarifa():
 def eliminar_tarifa(id):
     tarifa = db.session.get(Tarifa, id)
     if tarifa and tarifa.posada_id == current_user.posada_id:
-        db.session.delete(tarifa)
-        db.session.commit()
+        db.session.delete(tarifa); db.session.commit()
         return jsonify({'message': 'Tarifa eliminada'})
     return jsonify({'error': 'No encontrada'}), 404
 
@@ -497,30 +457,24 @@ def eliminar_tarifa(id):
 @login_required
 def calendario_completo():
     cancelar_reservas_expiradas()
-    mes = int(request.args.get('mes', datetime.now().month))
-    año = int(request.args.get('año', datetime.now().year))
+    mes = int(request.args.get('mes', datetime.now().month)); año = int(request.args.get('año', datetime.now().year))
     inicio = datetime(año, mes, 1).date()
     if mes == 12: fin = datetime(año + 1, 1, 1).date() - timedelta(days=1)
     else: fin = datetime(año, mes + 1, 1).date() - timedelta(days=1)
-    total_dias = fin.day
-    primer_dia_semana = (inicio.weekday() + 1) % 7
+    total_dias = fin.day; primer_dia_semana = (inicio.weekday() + 1) % 7
     total_habitaciones = Habitacion.query.filter_by(posada_id=current_user.posada_id).count()
     reservas = Reserva.query.filter(
         Reserva.posada_id == current_user.posada_id,
-        Reserva.estado.in_(ESTADOS_BLOQUEANTES),
-        Reserva.fecha_entrada <= fin,
-        Reserva.fecha_salida >= inicio
+        Reserva.estado != 'cancelada',
+        cast(Reserva.fecha_entrada, Date) <= fin,
+        cast(Reserva.fecha_salida, Date) >= inicio
     ).all()
     ocupacion_por_dia = {}
     for dia in range(1, total_dias + 1):
-        fecha = datetime(año, mes, dia).date()
-        fecha_str = fecha.strftime('%Y-%m-%d')
-        ocupadas = 0
+        fecha = datetime(año, mes, dia).date(); fecha_str = fecha.strftime('%Y-%m-%d'); ocupadas = 0
         for r in reservas:
             if r.fecha_entrada <= fecha <= r.fecha_salida: ocupadas += 1
-        ocupacion_por_dia[fecha_str] = {
-            'ocupadas': ocupadas, 'disponibles': total_habitaciones - ocupadas, 'total': total_habitaciones
-        }
+        ocupacion_por_dia[fecha_str] = {'ocupadas': ocupadas, 'disponibles': total_habitaciones - ocupadas, 'total': total_habitaciones}
     return jsonify({
         'total_dias': total_dias, 'primer_dia_semana': primer_dia_semana,
         'mes': mes, 'año': año, 'total_habitaciones': total_habitaciones,
@@ -536,11 +490,11 @@ def reservas_pendientes():
         Reserva.estado.in_(['pago_reportado', 'pendiente'])
     ).order_by(Reserva.fecha_reserva.desc()).all()
     return jsonify([{
-        'id': r.id, 'cliente_nombre': r.cliente_nombre,
-        'cliente_telefono': r.cliente_telefono, 'cliente_email': r.cliente_email,
-        'fecha_entrada': str(r.fecha_entrada), 'fecha_salida': str(r.fecha_salida),
-        'total': r.total, 'metodo_pago': r.metodo_pago, 'comprobante': r.comprobante,
-        'datos_huespedes': r.datos_huespedes, 'solo_reserva': r.solo_reserva,
+        'id': r.id, 'cliente_nombre': r.cliente_nombre, 'cliente_telefono': r.cliente_telefono,
+        'cliente_email': r.cliente_email, 'fecha_entrada': str(r.fecha_entrada),
+        'fecha_salida': str(r.fecha_salida), 'total': r.total, 'metodo_pago': r.metodo_pago,
+        'comprobante': r.comprobante, 'datos_huespedes': r.datos_huespedes,
+        'solo_reserva': r.solo_reserva,
         'fecha_expiracion': (r.fecha_expiracion - timedelta(hours=4)).strftime('%d/%m/%Y %H:%M') if r.fecha_expiracion else None,
         'aprobado_por': r.aprobado_por,
         'fecha_aprobacion': (r.fecha_aprobacion - timedelta(hours=4)).strftime('%d/%m/%Y %H:%M') if r.fecha_aprobacion else None,
@@ -573,32 +527,28 @@ def todas_reservas():
 @app.route('/api/ingresos-mes')
 @login_required
 def ingresos_mes():
-    mes = int(request.args.get('mes', datetime.now().month))
-    año = int(request.args.get('año', datetime.now().year))
+    mes = int(request.args.get('mes', datetime.now().month)); año = int(request.args.get('año', datetime.now().year))
     inicio_mes = datetime(año, mes, 1).date()
     if mes == 12: fin_mes = datetime(año + 1, 1, 1).date() - timedelta(days=1)
     else: fin_mes = datetime(año, mes + 1, 1).date() - timedelta(days=1)
     reservas = Reserva.query.filter(
         Reserva.posada_id == current_user.posada_id, Reserva.estado == 'confirmada',
-        Reserva.fecha_reserva >= inicio_mes, Reserva.fecha_reserva <= fin_mes
+        cast(Reserva.fecha_reserva, Date) >= inicio_mes, cast(Reserva.fecha_reserva, Date) <= fin_mes
     ).all()
-    return jsonify({'total': round(sum(r.total for r in reservas), 2), 'cantidad': len(reservas), 'mes': mes, 'año': año})
+    return jsonify({'total': round(sum(r.total for r in reservas), 2), 'cantidad': len(reservas)})
 
 @app.route('/api/exportar-reservas')
 @login_required
 def exportar_reservas():
-    cancelar_reservas_expiradas()
-    mes = int(request.args.get('mes', datetime.now().month))
-    año = int(request.args.get('año', datetime.now().year))
+    mes = int(request.args.get('mes', datetime.now().month)); año = int(request.args.get('año', datetime.now().year))
     inicio_mes = datetime(año, mes, 1).date()
     if mes == 12: fin_mes = datetime(año + 1, 1, 1).date() - timedelta(days=1)
     else: fin_mes = datetime(año, mes + 1, 1).date() - timedelta(days=1)
     reservas = Reserva.query.filter(
         Reserva.posada_id == current_user.posada_id,
-        Reserva.fecha_entrada >= inicio_mes, Reserva.fecha_entrada <= fin_mes
+        cast(Reserva.fecha_entrada, Date) >= inicio_mes, cast(Reserva.fecha_entrada, Date) <= fin_mes
     ).order_by(Reserva.fecha_entrada).all()
-    output = StringIO()
-    writer = csv.writer(output)
+    output = StringIO(); writer = csv.writer(output)
     writer.writerow(['ID', 'Cliente', 'Teléfono', 'Email', 'Habitación', 'Check-in', 'Check-out', 'Total USD', 'Estado', 'Pago'])
     for r in reservas:
         hab = db.session.get(Habitacion, r.habitacion_id)
@@ -612,17 +562,15 @@ def exportar_reservas():
 @app.route('/api/exportar-ingresos')
 @login_required
 def exportar_ingresos():
-    mes = int(request.args.get('mes', datetime.now().month))
-    año = int(request.args.get('año', datetime.now().year))
+    mes = int(request.args.get('mes', datetime.now().month)); año = int(request.args.get('año', datetime.now().year))
     inicio_mes = datetime(año, mes, 1).date()
     if mes == 12: fin_mes = datetime(año + 1, 1, 1).date() - timedelta(days=1)
     else: fin_mes = datetime(año, mes + 1, 1).date() - timedelta(days=1)
     reservas = Reserva.query.filter(
         Reserva.posada_id == current_user.posada_id, Reserva.estado == 'confirmada',
-        Reserva.fecha_reserva >= inicio_mes, Reserva.fecha_reserva <= fin_mes
+        cast(Reserva.fecha_reserva, Date) >= inicio_mes, cast(Reserva.fecha_reserva, Date) <= fin_mes
     ).order_by(Reserva.fecha_reserva).all()
-    output = StringIO()
-    writer = csv.writer(output)
+    output = StringIO(); writer = csv.writer(output)
     writer.writerow(['ID', 'Cliente', 'Teléfono', 'Habitación', 'Check-in', 'Check-out', 'Total USD', 'Pago'])
     total_general = 0
     for r in reservas:
@@ -641,10 +589,8 @@ def validar_pago(reserva_id):
     data = request.json
     reserva = db.session.get(Reserva, reserva_id)
     if reserva and reserva.posada_id == current_user.posada_id:
-        accion = data.get('accion', 'confirmada')
-        comentario = data.get('comentario', '')
-        reserva.estado = accion
-        reserva.aprobado_por = current_user.username
+        accion = data.get('accion', 'confirmada'); comentario = data.get('comentario', '')
+        reserva.estado = accion; reserva.aprobado_por = current_user.username
         reserva.fecha_aprobacion = datetime.utcnow()
         if accion == 'cancelada' and comentario: reserva.comentario_rechazo = comentario
         db.session.commit()
@@ -655,9 +601,7 @@ def validar_pago(reserva_id):
 @login_required
 def obtener_configuracion():
     configs = Configuracion.query.filter_by(posada_id=current_user.posada_id).all()
-    resultado = {}
-    for c in configs: resultado[c.clave] = c.valor
-    return jsonify(resultado)
+    return jsonify({c.clave: c.valor for c in configs})
 
 @app.route('/api/configuracion', methods=['POST'])
 @login_required
@@ -668,14 +612,13 @@ def guardar_configuracion():
         if config: config.valor = str(valor)
         else: db.session.add(Configuracion(clave=clave, valor=str(valor), posada_id=current_user.posada_id))
     db.session.commit()
-    return jsonify({'message': 'Configuración guardada'})
+    return jsonify({'message': 'Guardado'})
 
 @app.route('/agencia/login', methods=['GET', 'POST'])
 def login_agencia():
     if request.method == 'POST':
-        email = request.form.get('email'); password = request.form.get('password')
-        agencia = Agencia.query.filter_by(email=email, activo=True).first()
-        if agencia and check_password_hash(agencia.password_hash, password):
+        agencia = Agencia.query.filter_by(email=request.form.get('email'), activo=True).first()
+        if agencia and check_password_hash(agencia.password_hash, request.form.get('password')):
             session['agencia_id'] = agencia.id; session['agencia_nombre'] = agencia.nombre
             return redirect(url_for('panel_agencia'))
     return render_template('agencia/login.html')
@@ -695,26 +638,26 @@ def calendario_agencia():
     if not session.get('agencia_id'): return jsonify({'error': 'No autorizado'}), 403
     cancelar_reservas_expiradas()
     mes = int(request.args.get('mes', datetime.now().month)); año = int(request.args.get('año', datetime.now().year))
-    posada_id = 1
     inicio = datetime(año, mes, 1).date()
     if mes == 12: fin = datetime(año + 1, 1, 1).date() - timedelta(days=1)
     else: fin = datetime(año, mes + 1, 1).date() - timedelta(days=1)
-    total_habitaciones = Habitacion.query.filter_by(posada_id=posada_id).count()
+    total_habitaciones = Habitacion.query.filter_by(posada_id=1).count()
     reservas = Reserva.query.filter(
-        Reserva.posada_id == posada_id,
-        Reserva.estado.in_(ESTADOS_BLOQUEANTES),
-        Reserva.fecha_entrada <= fin, Reserva.fecha_salida >= inicio
+        Reserva.posada_id == 1, Reserva.estado != 'cancelada',
+        cast(Reserva.fecha_entrada, Date) <= fin, cast(Reserva.fecha_salida, Date) >= inicio
     ).all()
     ocupacion_por_dia = {}
     for dia in range(1, fin.day + 1):
-        fecha = datetime(año, mes, dia).date(); fecha_str = fecha.strftime('%Y-%m-%d'); ocupadas = 0
+        fecha = datetime(año, mes, dia).date(); ocupadas = 0
         for r in reservas:
             if r.fecha_entrada <= fecha <= r.fecha_salida: ocupadas += 1
-        ocupacion_por_dia[fecha_str] = {'ocupadas': ocupadas, 'disponibles': total_habitaciones - ocupadas, 'total': total_habitaciones}
+        ocupacion_por_dia[fecha.strftime('%Y-%m-%d')] = {
+            'ocupadas': ocupadas, 'disponibles': total_habitaciones - ocupadas, 'total': total_habitaciones
+        }
     return jsonify({
         'total_dias': fin.day, 'primer_dia_semana': (inicio.weekday() + 1) % 7,
         'mes': mes, 'año': año, 'ocupacion_por_dia': ocupacion_por_dia,
-        'habitaciones': [{'id': h.id, 'nombre': h.nombre, 'tipo': h.tipo, 'precio_base': h.precio_base} for h in Habitacion.query.filter_by(posada_id=posada_id).all()]
+        'habitaciones': [{'id': h.id, 'nombre': h.nombre, 'tipo': h.tipo, 'precio_base': h.precio_base} for h in Habitacion.query.filter_by(posada_id=1).all()]
     })
 
 @app.route('/api/reiniciar-bd')
@@ -755,8 +698,6 @@ with app.app_context():
             db.session.add(Habitacion(nombre=nombre, tipo=tipo, capacidad=cap, camas=camas, precio_base=precio, descripcion='Hermosa habitacion', posada_id=posada.id))
         db.session.commit()
         print("✅ Base de datos creada")
-        print("👤 admin | 🔑 admin123")
-        print("🏢 agencia@demo.com | 🔑 agencia123")
 
 if __name__ == '__main__':
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
