@@ -8,9 +8,6 @@ from werkzeug.utils import secure_filename
 import json
 import csv
 from io import StringIO
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
 
 basedir = os.path.abspath(os.path.dirname(__file__))
 
@@ -109,30 +106,15 @@ class BloqueoTemporal(db.Model):
 
 class Configuracion(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    clave = db.Column(db.String(50), unique=True)
+    clave = db.Column(db.String(50))
     valor = db.Column(db.String(100))
     posada_id = db.Column(db.Integer, db.ForeignKey('posada.id'))
 
 def enviar_email(destinatario, asunto, mensaje):
-    try:
-        remitente = "tusistema@gmail.com"
-        password = "tu_contraseña_de_app"
-        
-        msg = MIMEMultipart()
-        msg['From'] = remitente
-        msg['To'] = destinatario
-        msg['Subject'] = asunto
-        msg.attach(MIMEText(mensaje, 'html'))
-        
-        server = smtplib.SMTP('smtp.gmail.com', 587)
-        server.starttls()
-        server.login(remitente, password)
-        server.send_message(msg)
-        server.quit()
-        return True
-    except Exception as e:
-        print(f"Error enviando email: {e}")
-        return False
+    # Email desactivado - Se activará con servidor pago
+    print(f"📧 Email pendiente para: {destinatario}")
+    print(f"   Asunto: {asunto}")
+    return True
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -351,7 +333,6 @@ def crear_reserva():
         solo_reserva = metodo_pago == 'solo_reserva'
         estado_inicial = 'pendiente' if solo_reserva else 'pago_reportado'
         
-        # Obtener tiempo de expiración configurado
         minutos_expiracion = 40
         if solo_reserva:
             config = Configuracion.query.filter_by(
@@ -513,11 +494,11 @@ def reservas_pendientes():
         'comprobante': r.comprobante,
         'datos_huespedes': r.datos_huespedes,
         'solo_reserva': r.solo_reserva,
-        'fecha_expiracion': r.fecha_expiracion.strftime('%d/%m/%Y %H:%M') if r.fecha_expiracion else None,
+        'fecha_expiracion': (r.fecha_expiracion - timedelta(hours=4)).strftime('%d/%m/%Y %H:%M') if r.fecha_expiracion else None,
         'aprobado_por': r.aprobado_por,
-        'fecha_aprobacion': r.fecha_aprobacion.strftime('%d/%m/%Y %H:%M') if r.fecha_aprobacion else None,
+        'fecha_aprobacion': (r.fecha_aprobacion - timedelta(hours=4)).strftime('%d/%m/%Y %H:%M') if r.fecha_aprobacion else None,
         'comentario_rechazo': r.comentario_rechazo,
-        'fecha_reserva': r.fecha_reserva.strftime('%d/%m/%Y %H:%M')
+        'fecha_reserva': (r.fecha_reserva - timedelta(hours=4)).strftime('%d/%m/%Y %H:%M')
     } for r in reservas])
 
 @app.route('/api/todas-reservas')
@@ -544,7 +525,8 @@ def todas_reservas():
             'comprobante': r.comprobante,
             'datos_huespedes': r.datos_huespedes,
             'solo_reserva': r.solo_reserva,
-            'fecha_reserva': r.fecha_reserva.strftime('%d/%m/%Y %H:%M')
+            'fecha_expiracion': (r.fecha_expiracion - timedelta(hours=4)).strftime('%d/%m/%Y %H:%M') if r.fecha_expiracion else None,
+            'fecha_reserva': (r.fecha_reserva - timedelta(hours=4)).strftime('%d/%m/%Y %H:%M')
         })
     
     return jsonify(resultado)
@@ -617,7 +599,7 @@ def exportar_reservas():
             r.total,
             r.estado,
             r.metodo_pago or '-',
-            r.fecha_reserva.strftime('%d/%m/%Y') if r.fecha_reserva else ''
+            (r.fecha_reserva - timedelta(hours=4)).strftime('%d/%m/%Y') if r.fecha_reserva else ''
         ])
     
     output.seek(0)
@@ -662,7 +644,7 @@ def exportar_ingresos():
             str(r.fecha_salida),
             r.total,
             r.metodo_pago or '-',
-            r.fecha_reserva.strftime('%d/%m/%Y') if r.fecha_reserva else ''
+            (r.fecha_reserva - timedelta(hours=4)).strftime('%d/%m/%Y') if r.fecha_reserva else ''
         ])
         total_general += r.total
     
@@ -694,37 +676,11 @@ def validar_pago(reserva_id):
         
         db.session.commit()
         
-        if reserva.cliente_email:
-            hab = db.session.get(Habitacion, reserva.habitacion_id)
-            if accion == 'confirmada':
-                asunto = f"✅ Reserva #{reserva.id} Confirmada - Demo-Posadas"
-                mensaje = f"""
-                <h2>¡Reserva Confirmada!</h2>
-                <p>Hola {reserva.cliente_nombre},</p>
-                <p>Su reserva ha sido <strong>APROBADA</strong> por {current_user.username}.</p>
-                <hr>
-                <p><strong>Habitación:</strong> {hab.nombre if hab else 'N/A'}</p>
-                <p><strong>Check-in:</strong> {reserva.fecha_entrada}</p>
-                <p><strong>Check-out:</strong> {reserva.fecha_salida}</p>
-                <p><strong>Total:</strong> ${reserva.total}</p>
-                <hr>
-                <p>¡Lo esperamos!</p>
-                """
-            else:
-                asunto = f"❌ Reserva #{reserva.id} Rechazada - Demo-Posadas"
-                mensaje = f"""
-                <h2>Reserva Rechazada</h2>
-                <p>Hola {reserva.cliente_nombre},</p>
-                <p>Su reserva ha sido <strong>RECHAZADA</strong>.</p>
-                <p><strong>Motivo:</strong> {comentario if comentario else 'No especificado'}</p>
-                <p>Puede intentar nuevamente o contactarnos.</p>
-                """
-            try:
-                enviar_email(reserva.cliente_email, asunto, mensaje)
-            except Exception as e:
-                print(f"Error email: {e}")
+        # Email desactivado - se activará con servidor pago
+        # if reserva.cliente_email:
+        #     enviar_email(reserva.cliente_email, asunto, mensaje)
         
-        return jsonify({'message': 'Actualizado'})
+        return jsonify({'message': 'Actualizado correctamente'})
     return jsonify({'error': 'No encontrada'}), 404
 
 # ============ CONFIGURACIÓN ============
