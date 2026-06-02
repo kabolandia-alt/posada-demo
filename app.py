@@ -644,7 +644,42 @@ with app.app_context():
                                      precio_base=precio, descripcion='Hermosa habitacion', posada_id=posada.id))
         db.session.commit()
         print("✅ Base de datos inicial creada")
+# ============================================================
+# REINICIAR BASE DE DATOS
+# ============================================================
 
+@app.route('/api/reiniciar-bd')
+def reiniciar_bd():
+    try:
+        db.drop_all()
+        db.create_all()
+        
+        posada = Posada(nombre='Demo-Posadas', direccion='Sistema de gestion de prueba')
+        db.session.add(posada)
+        db.session.commit()
+        
+        db.session.add(Usuario(username='admin', password_hash=generate_password_hash('admin123'), rol='admin', posada_id=posada.id))
+        db.session.add(Agencia(nombre='Agencia Demo', email='agencia@demo.com', password_hash=generate_password_hash('agencia123'), posada_id=posada.id))
+        db.session.add(Configuracion(clave='tiempo_expiracion', valor='40', posada_id=posada.id))
+        db.session.commit()
+        
+        for nombre, tipo, cap, camas, precio in [
+            ('Deluxe Vista al Mar', 'matrimonial', 2, '1 cama King', 80),
+            ('Familiar Premium', 'familiar', 4, '2 camas Queen', 120),
+            ('Economica Standard', 'triple', 3, '1 matrimonial + 1 individual', 50),
+        ]:
+            db.session.add(Habitacion(nombre=nombre, tipo=tipo, capacidad=cap, camas=camas, 
+                                     precio_base=precio, descripcion='Hermosa habitacion', posada_id=posada.id))
+        db.session.commit()
+        
+        return jsonify({
+            'message': '✅ Base de datos recreada exitosamente',
+            'admin': 'admin / admin123',
+            'agencia': 'agencia@demo.com / agencia123'
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
 if __name__ == '__main__':
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
     port = int(os.environ.get('PORT', 5000))
