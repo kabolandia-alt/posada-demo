@@ -24,27 +24,8 @@
         .modal-content { background: white; border-radius: 20px; padding: 30px; max-width: 600px; width: 95%; max-height: 85vh; overflow-y: auto; }
         .huesped-card { background: #f8f9fa; border-radius: 10px; padding: 15px; margin-bottom: 10px; border-left: 4px solid var(--primario); }
         .datos-pago { background: #fff3cd; border-radius: 10px; padding: 15px; margin: 15px 0; }
-        .localizador-destacado { 
-            background: linear-gradient(135deg, #2C5F8A, #1a3a5c); 
-            color: white; 
-            padding: 15px; 
-            border-radius: 15px; 
-            text-align: center; 
-            margin: 15px 0;
-            font-size: 1.5em;
-            font-family: monospace;
-            letter-spacing: 3px;
-            font-weight: bold;
-        }
-        .localizador-info {
-            background: #e8f5e9;
-            border-radius: 10px;
-            padding: 10px;
-            text-align: center;
-            color: #2e7d32;
-            font-weight: bold;
-            margin-top: 10px;
-        }
+        .localizador-destacado { background: linear-gradient(135deg, #2C5F8A, #1a3a5c); color: white; padding: 15px; border-radius: 15px; text-align: center; margin: 15px 0; font-size: 1.5em; font-family: monospace; letter-spacing: 3px; font-weight: bold; }
+        .localizador-info { background: #e8f5e9; border-radius: 10px; padding: 10px; text-align: center; color: #2e7d32; font-weight: bold; margin-top: 10px; }
         @media (max-width: 768px) { .header h1 { font-size: 2em; } .modal-content { padding: 15px; } }
     </style>
 </head>
@@ -66,6 +47,16 @@
                     </div>
                     <div id="cargando" class="text-center mt-4" style="display:none;"><div class="spinner-border text-primary"></div><p>🔍 Buscando...</p></div>
                 </div>
+                
+                <!-- BUSCADOR DE LOCALIZADOR -->
+                <div class="search-card">
+                    <h4 class="text-center mb-3">🔍 Consultar mi Reserva</h4>
+                    <div class="input-group mb-3">
+                        <input type="text" id="buscarLocalizador" class="form-control form-control-lg" placeholder="Ingresa tu localizador (ej: AF36HB)" maxlength="6" style="text-transform: uppercase;">
+                        <button class="btn btn-primary btn-lg" onclick="consultarReserva()">🔍 Buscar</button>
+                    </div>
+                    <div id="resultadoConsulta" style="display:none;"></div>
+                </div>
             </div>
         </div>
         <div id="resultados" class="row mt-4"></div>
@@ -75,18 +66,11 @@
         <div class="modal-content">
             <div class="d-flex justify-content-between align-items-center mb-3"><h3>📝 Completar Reserva</h3><button class="btn-close" onclick="cerrarModal()"></button></div>
             <div id="resumenHabitacion" class="bg-light p-3 rounded mb-3"></div>
-            
-            <!-- Mensaje de localizador (se llena después de crear reserva) -->
             <div id="localizadorExito" style="display:none;">
-                <div class="localizador-destacado">
-                    🔑 <span id="localizadorCodigo"></span>
-                </div>
-                <div class="localizador-info">
-                    📌 GUARDA ESTE CÓDIGO - Lo necesitarás para gestionar tu reserva
-                </div>
+                <div class="localizador-destacado">🔑 <span id="localizadorCodigo"></span></div>
+                <div class="localizador-info">📌 GUARDA ESTE CÓDIGO - Lo necesitarás para gestionar tu reserva</div>
                 <hr>
             </div>
-            
             <form id="formReserva" enctype="multipart/form-data">
                 <h5 class="text-primary">👤 Datos del Titular</h5>
                 <div class="row g-2 mb-3">
@@ -171,11 +155,8 @@
             habitacionSeleccionada = id; totalSeleccionado = precio;
             document.getElementById('resumenHabitacion').innerHTML = `<strong>${nombre}</strong><br><small>${tipo} · ${camas}</small>`;
             document.getElementById('totalReserva').textContent = `$${precio}`;
-            
-            // Ocultar localizador de reservas anteriores
             document.getElementById('localizadorExito').style.display = 'none';
             document.getElementById('formReserva').style.display = 'block';
-            
             const adultos = parseInt(document.getElementById('adultos').value);
             const ninos = parseInt(document.getElementById('ninos').value);
             const total = adultos + ninos;
@@ -225,30 +206,45 @@
             
             fetch('/api/reservas', { method: 'POST', body: formData }).then(r => r.json()).then(data => {
                 if (data.reserva_id) {
-                    // Mostrar localizador destacado
                     document.getElementById('formReserva').style.display = 'none';
                     document.getElementById('localizadorCodigo').textContent = data.localizador;
                     document.getElementById('localizadorExito').style.display = 'block';
-                    
-                    // También mostrar alerta
-                    let msg = '✅ ¡Reserva creada exitosamente!\n\n';
-                    msg += '🔑 TU LOCALIZADOR: ' + data.localizador + '\n\n';
-                    msg += '📌 GUARDA ESTE CÓDIGO - Lo necesitarás para todo\n\n';
-                    msg += 'Total: $' + data.total;
-                    if (metodo === 'solo_reserva') {
-                        msg += '\n\n⏰ Tienes 40 minutos para confirmar el pago';
-                    }
+                    let msg = '✅ ¡Reserva creada exitosamente!\n\n🔑 TU LOCALIZADOR: ' + data.localizador + '\n\n📌 GUARDA ESTE CÓDIGO\n\nTotal: $' + data.total;
+                    if (metodo === 'solo_reserva') msg += '\n\n⏰ Tienes 40 minutos para confirmar el pago';
                     alert(msg);
-                    
-                    // Cerrar modal después de 5 segundos
                     setTimeout(() => { cerrarModal(); buscarDisponibilidad(); }, 5000);
-                } else { 
-                    alert('❌ ' + (data.error || 'Error al crear la reserva')); 
-                }
+                } else { alert('❌ ' + (data.error || 'Error al crear la reserva')); }
             }).catch(() => alert('❌ Error de conexión'));
         });
         
         document.getElementById('modalReserva').addEventListener('click', function(e) { if (e.target === this) cerrarModal(); });
+        
+        function consultarReserva() {
+            const localizador = document.getElementById('buscarLocalizador').value.trim().toUpperCase();
+            if (!localizador || localizador.length < 6) { alert('⚠️ Ingresa un localizador válido de 6 caracteres'); return; }
+            fetch('/api/consultar-reserva/' + localizador).then(r => r.json()).then(data => {
+                const div = document.getElementById('resultadoConsulta');
+                div.style.display = 'block';
+                if (data.error) { div.innerHTML = '<div class="alert alert-danger">❌ ' + data.error + '</div>'; return; }
+                const estadoColor = data.estado === 'confirmada' ? 'success' : data.estado === 'pendiente' ? 'warning' : data.estado === 'cancelada' ? 'danger' : 'info';
+                div.innerHTML = `
+                    <div class="alert alert-${estadoColor}">
+                        <h5>🔑 Reserva: <strong>${data.localizador}</strong></h5><hr>
+                        <p><strong>👤 Cliente:</strong> ${data.cliente_nombre}</p>
+                        <p><strong>🏨 Habitación:</strong> ${data.habitacion}</p>
+                        <p><strong>📅 Check-in:</strong> ${data.fecha_entrada}</p>
+                        <p><strong>📅 Check-out:</strong> ${data.fecha_salida}</p>
+                        <p><strong>👥 Huéspedes:</strong> ${data.adultos} adultos, ${data.ninos} niños</p>
+                        <p><strong>💰 Total:</strong> $${data.total}</p>
+                        <p><strong>💳 Pago:</strong> ${data.metodo_pago || 'No especificado'}</p>
+                        <p><strong>📊 Estado:</strong> <span class="badge bg-${estadoColor}">${data.estado}</span></p>
+                        <p><small>📅 Reservado el: ${data.fecha_reserva}</small></p>
+                    </div>`;
+            }).catch(() => { 
+                document.getElementById('resultadoConsulta').style.display = 'block';
+                document.getElementById('resultadoConsulta').innerHTML = '<div class="alert alert-danger">❌ Error de conexión</div>';
+            });
+        }
     </script>
 </body>
 </html>
