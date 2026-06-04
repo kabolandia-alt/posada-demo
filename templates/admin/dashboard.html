@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard - Demo-Posadas</title>
+    <title>Dashboard - Panel Admin</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         :root { --primario: #2C5F8A; --verde: #51CF66; --rojo: #FF6B6B; --amarillo: #FFD43B; }
@@ -11,36 +11,34 @@
         .sidebar { background: var(--primario); min-height: 100vh; color: white; padding: 20px 15px; }
         .sidebar .nav-link { color: rgba(255,255,255,0.8); padding: 12px 15px; border-radius: 10px; margin: 3px 0; cursor: pointer; display: block; text-decoration: none; font-size: 16px; }
         .sidebar .nav-link:hover, .sidebar .nav-link.active { background: rgba(255,255,255,0.2); color: white; }
-        .stat-card { border-radius: 15px; border: none; color: white; }
-        .stat-card h2 { font-size: 2.5em; font-weight: bold; }
+        .stat-card { border-radius: 15px; border: none; color: white; margin-bottom: 15px; }
+        .stat-card h2 { font-size: 2em; font-weight: bold; }
+        .stat-card h5 { font-size: 1.1em; }
+        .stat-card small { font-size: 0.8em; opacity: 0.9; }
         .section-panel { background: white; border-radius: 15px; padding: 25px; box-shadow: 0 3px 10px rgba(0,0,0,0.05); margin-bottom: 20px; }
         .habitacion-admin-card { border: 2px solid #eee; border-radius: 15px; padding: 15px; margin-bottom: 15px; background: white; }
         .habitacion-admin-card img { width: 100%; height: 150px; object-fit: cover; border-radius: 10px; }
         .btn-accion { border-radius: 20px; padding: 8px 20px; font-weight: 600; }
         .tarifa-form-row { display: flex; gap: 15px; align-items: flex-end; flex-wrap: wrap; }
-        .tarifa-form-row > div { flex: 1; min-width: 150px; }
         .calendario-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; font-size: 14px; }
         .calendario-header { text-align: center; font-weight: bold; padding: 8px; background: var(--primario); color: white; border-radius: 5px; }
         .calendario-dia { padding: 10px 5px; text-align: center; border-radius: 8px; min-height: 60px; }
         .calendario-dia.vacio { background: #f9f9f9; color: #ccc; }
         .calendario-dia.libre { background: #e8f5e9; color: #2e7d32; font-weight: 500; }
         .calendario-dia.ocupado { background: #ffebee; color: #c62828; font-weight: 500; }
-        .calendario-navegacion { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px; }
-        .calendario-navegacion button { background: var(--primario); color: white; border: none; padding: 10px 20px; border-radius: 10px; cursor: pointer; font-weight: bold; }
         .pago-pendiente { border-left: 4px solid var(--amarillo); padding: 15px; background: white; border-radius: 10px; margin-bottom: 10px; }
         .footer { text-align: center; padding: 15px; margin-top: 20px; color: #888; font-size: 12px; border-top: 1px solid #eee; }
+        .localizador-badge { background: #2C5F8A; color: white; padding: 3px 10px; border-radius: 15px; font-family: monospace; font-size: 14px; }
         @media (max-width: 768px) {
             .sidebar { min-height: auto; margin-bottom: 15px; border-radius: 10px; }
-            .stat-card h2 { font-size: 1.8em; }
+            .stat-card h2 { font-size: 1.5em; }
             .calendario-dia { min-height: 40px; padding: 5px; font-size: 12px; }
-            .habitacion-admin-card img { height: 120px; }
         }
     </style>
 </head>
 <body>
     <div class="container-fluid">
         <button class="btn btn-primary d-md-none mb-3" type="button" data-bs-toggle="collapse" data-bs-target="#sidebarMenu">☰ Menú</button>
-        
         <div class="row">
             <div class="col-md-2 sidebar collapse d-md-block" id="sidebarMenu">
                 <h4 class="text-center mb-4">🏨 Admin Panel</h4>
@@ -59,7 +57,7 @@
             <div class="col-md-10 p-4">
                 <!-- DASHBOARD -->
                 <div id="seccion-dashboard">
-                    <h2 class="mb-4">📊 Dashboard</h2>
+                    <h2 class="mb-4">📊 Dashboard de Indicadores</h2>
                     <div class="row mb-3">
                         <div class="col-md-3">
                             <select id="filtroMes" class="form-select" onchange="cargarDashboard()">
@@ -77,6 +75,9 @@
                         <div class="col-6 col-md-3"><div class="card stat-card bg-danger"><div class="card-body"><h6>OCUPADAS HOY</h6><h2 id="ocupadas-hoy">-</h2></div></div></div>
                         <div class="col-6 col-md-3"><div class="card stat-card bg-warning text-dark"><div class="card-body"><h6>PENDIENTES</h6><h2 id="pendientes-pago">-</h2></div></div></div>
                         <div class="col-6 col-md-3"><div class="card stat-card bg-info"><div class="card-body"><h6>INGRESOS MES</h6><h2 id="ingresos-mes">-</h2></div></div></div>
+                        <div class="col-6 col-md-3"><div class="card stat-card bg-primary"><div class="card-body"><h6>🏆 MÁS VENDIDA</h6><h5 id="mas-vendida">-</h5><small id="mas-vendida-ingresos"></small></div></div></div>
+                        <div class="col-6 col-md-3"><div class="card stat-card bg-secondary"><div class="card-body"><h6>📉 MENOS VENDIDA</h6><h5 id="menos-vendida">-</h5><small id="menos-vendida-ingresos"></small></div></div></div>
+                        <div class="col-6 col-md-3"><div class="card stat-card bg-dark"><div class="card-body"><h6>📅 MEJOR TEMPORADA</h6><h5 id="mejor-temporada">-</h5><small id="mejor-temporada-reservas"></small></div></div></div>
                     </div>
                 </div>
 
@@ -113,161 +114,117 @@
                 <div id="seccion-tarifas" style="display:none;">
                     <h2 class="mb-3">💲 Tarifas Especiales</h2>
                     <div class="section-panel">
-                        <div class="alert alert-info">
-                            💡 <strong>Tipos de tarifa:</strong><br>
-                            📅 <strong>Rango de Fechas:</strong> Aplica a un período (ej: 15 Dic - 15 Ene)<br>
-                            📆 <strong>Días de la Semana:</strong> Aplica a días específicos cada semana (ej: Fines de semana)<br>
-                            🎯 <strong>Días Específicos:</strong> Aplica solo a ciertos días (ej: Mar-Jue más barato)<br>
-                            💲 Usa <strong>+</strong> para aumentar y <strong>-</strong> para descontar del precio base
-                        </div>
+                        <div class="alert alert-info">💡 <strong>Tipos:</strong> 📅 Rango Fechas | 📆 Días Semana | 🎯 Días Específicos<br>💲 Usa <strong>+</strong> para aumentar y <strong>-</strong> para descontar</div>
                         <form id="formTarifa">
                             <div class="row g-3 mb-3">
-                                <div class="col-md-3">
-                                    <label class="form-label">Nombre *</label>
-                                    <input type="text" name="nombre" class="form-control" placeholder="Ej: Navidad 2024" required>
-                                </div>
-                                <div class="col-md-3">
-                                    <label class="form-label">Tipo Tarifa *</label>
-                                    <select name="tipo" id="tipoTarifa" class="form-select" required onchange="cambiarTipoTarifa()">
-                                        <option value="rango_fechas">📅 Rango de Fechas</option>
-                                        <option value="dias_semana">📆 Días de la Semana</option>
-                                        <option value="dias_especificos">🎯 Días Específicos</option>
-                                    </select>
-                                </div>
-                                <div class="col-md-3">
-                                    <label class="form-label">💲 Ajuste/noche ($)</label>
-                                    <input type="number" name="precio_extra" class="form-control" step="0.01" value="20" required>
-                                    <small class="text-muted">+ aumenta, - descuenta</small>
-                                </div>
-                                <div class="col-md-3 d-flex align-items-end">
-                                    <button type="submit" class="btn btn-warning btn-accion w-100">+ Agregar Tarifa</button>
-                                </div>
+                                <div class="col-md-3"><label class="form-label">Nombre *</label><input type="text" name="nombre" class="form-control" required></div>
+                                <div class="col-md-3"><label class="form-label">Tipo *</label><select name="tipo" id="tipoTarifa" class="form-select" required onchange="cambiarTipoTarifa()"><option value="rango_fechas">📅 Rango de Fechas</option><option value="dias_semana">📆 Días de la Semana</option><option value="dias_especificos">🎯 Días Específicos</option></select></div>
+                                <div class="col-md-3"><label class="form-label">💲 Ajuste/noche ($)</label><input type="number" name="precio_extra" class="form-control" step="0.01" value="20" required></div>
+                                <div class="col-md-3 d-flex align-items-end"><button type="submit" class="btn btn-warning btn-accion w-100">+ Agregar</button></div>
                             </div>
                             <div class="row g-3" id="divFechasContainer">
-                                <div class="col-md-3" id="divFechas">
-                                    <label class="form-label">📅 Fecha Desde</label>
-                                    <input type="date" name="fecha_inicio" id="fecha_inicio" class="form-control" required>
-                                </div>
-                                <div class="col-md-3" id="divFechasFin">
-                                    <label class="form-label">📅 Fecha Hasta</label>
-                                    <input type="date" name="fecha_fin" id="fecha_fin" class="form-control" required>
-                                </div>
+                                <div class="col-md-3"><label class="form-label">📅 Desde</label><input type="date" name="fecha_inicio" id="fecha_inicio" class="form-control" required></div>
+                                <div class="col-md-3"><label class="form-label">📅 Hasta</label><input type="date" name="fecha_fin" id="fecha_fin" class="form-control" required></div>
                             </div>
                             <div class="row g-3" id="divDias" style="display:none;">
-                                <div class="col-12">
-                                    <label class="form-label">🗓️ Días a aplicar:</label>
-                                    <div class="d-flex flex-wrap gap-2">
-                                        <label class="me-3"><input type="checkbox" name="dia" value="0"> Lun</label>
-                                        <label class="me-3"><input type="checkbox" name="dia" value="1"> Mar</label>
-                                        <label class="me-3"><input type="checkbox" name="dia" value="2"> Mié</label>
-                                        <label class="me-3"><input type="checkbox" name="dia" value="3"> Jue</label>
-                                        <label class="me-3"><input type="checkbox" name="dia" value="4"> Vie</label>
-                                        <label class="me-3"><input type="checkbox" name="dia" value="5"> Sáb</label>
-                                        <label class="me-3"><input type="checkbox" name="dia" value="6"> Dom</label>
-                                    </div>
+                                <div class="col-12"><label class="form-label">🗓️ Días:</label>
+                                    <label class="me-3"><input type="checkbox" name="dia" value="0"> Lun</label>
+                                    <label class="me-3"><input type="checkbox" name="dia" value="1"> Mar</label>
+                                    <label class="me-3"><input type="checkbox" name="dia" value="2"> Mié</label>
+                                    <label class="me-3"><input type="checkbox" name="dia" value="3"> Jue</label>
+                                    <label class="me-3"><input type="checkbox" name="dia" value="4"> Vie</label>
+                                    <label class="me-3"><input type="checkbox" name="dia" value="5"> Sáb</label>
+                                    <label class="me-3"><input type="checkbox" name="dia" value="6"> Dom</label>
                                 </div>
                             </div>
                         </form>
-                        <hr>
-                        <div id="lista-tarifas"></div>
+                        <hr><div id="lista-tarifas"></div>
                     </div>
                 </div>
 
                 <!-- PAGOS -->
-                <div id="seccion-pagos" style="display:none;">
-                    <h2 class="mb-3">💰 Pagos Pendientes</h2>
-                    <div id="lista-pagos"></div>
-                </div>
+                <div id="seccion-pagos" style="display:none;"><h2 class="mb-3">💰 Pagos Pendientes</h2><div id="lista-pagos"></div></div>
 
                 <!-- RESERVAS -->
-                <div id="seccion-reservas" style="display:none;">
-                    <h2 class="mb-3">📋 Todas las Reservas</h2>
-                    <div id="lista-reservas"></div>
-                </div>
+                <div id="seccion-reservas" style="display:none;"><h2 class="mb-3">📋 Todas las Reservas</h2><div id="lista-reservas"></div></div>
 
                 <!-- CONFIGURACIÓN -->
                 <div id="seccion-configuracion" style="display:none;">
                     <h2 class="mb-3">⚙️ Configuración del Sistema</h2>
                     <div class="section-panel">
-                        <h4>⏱️ Tiempo de Expiración de Reservas</h4>
-                        <p class="text-muted">Tiempo máximo que una reserva "Solo Reservar" permanece activa antes de cancelarse automáticamente.</p>
-                        <div class="row">
-                            <div class="col-md-4"><label class="form-label">Minutos</label><input type="number" id="tiempoExpiracion" class="form-control" min="5" max="120" value="40"></div>
+                        <h4>⏱️ Tiempo de Expiración (minutos)</h4>
+                        <div class="row mb-4">
+                            <div class="col-md-4"><input type="number" id="tiempoExpiracion" class="form-control" min="5" max="120" value="40"></div>
                             <div class="col-md-4 d-flex align-items-end"><button class="btn btn-primary" onclick="guardarConfiguracion()">💾 Guardar</button></div>
                         </div>
-                        <hr>
-                        <div class="alert alert-success" id="msgConfig" style="display:none;"></div>
+                        <div class="alert alert-success mt-2" id="msgConfig" style="display:none;"></div>
+                        
+                        <h4>🏨 Datos de la Posada</h4>
+                        <div class="row g-3">
+                            <div class="col-md-6"><label class="form-label">Nombre</label><input type="text" id="posadaNombre" class="form-control"></div>
+                            <div class="col-md-6"><label class="form-label">Dirección</label><input type="text" id="posadaDireccion" class="form-control"></div>
+                            <div class="col-md-4"><label class="form-label">Teléfono</label><input type="text" id="posadaTelefono" class="form-control"></div>
+                            <div class="col-md-4"><label class="form-label">Email</label><input type="email" id="posadaEmail" class="form-control"></div>
+                            <div class="col-md-2"><label class="form-label">Color Primario</label><input type="color" id="posadaColorPrimario" class="form-control"></div>
+                            <div class="col-md-2"><label class="form-label">Color Secundario</label><input type="color" id="posadaColorSecundario" class="form-control"></div>
+                        </div>
+                        <button class="btn btn-primary mt-3" onclick="guardarDatosPosada()">💾 Guardar Datos</button>
                     </div>
                 </div>
 
-                <!-- FOOTER -->
-                <div class="footer">
-                    © 2026 <strong>Nova Tech</strong> - Todos los derechos reservados<br>
-                    Desarrollado por <strong>José García</strong> | Protegido por leyes de propiedad intelectual
-                </div>
+                <div class="footer">© 2026 <strong>Nova Tech</strong> - Desarrollado por <strong>José García</strong></div>
             </div>
         </div>
     </div>
-
-    <!-- MODAL EDITAR HABITACIÓN -->
-    <div class="modal fade" id="modalEditarHabitacion" tabindex="-1">
-        <div class="modal-dialog modal-lg">
-            <div class="modal-content">
-                <div class="modal-header bg-primary text-white"><h5 class="modal-title">✏️ Editar Habitación</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
-                <div class="modal-body">
-                    <form id="formEditarHabitacion" enctype="multipart/form-data">
-                        <input type="hidden" id="edit-hab-id" name="id">
-                        <div class="row g-3">
-                            <div class="col-md-6"><label class="form-label">Nombre *</label><input type="text" id="edit-nombre" name="nombre" class="form-control" required></div>
-                            <div class="col-md-3"><label class="form-label">Tipo *</label><select id="edit-tipo" name="tipo" class="form-select" required><option value="matrimonial">Matrimonial</option><option value="triple">Triple</option><option value="familiar">Familiar</option><option value="suite">Suite</option></select></div>
-                            <div class="col-md-3"><label class="form-label">Capacidad *</label><input type="number" id="edit-capacidad" name="capacidad" class="form-control" min="1" required></div>
-                            <div class="col-md-4"><label class="form-label">Camas</label><input type="text" id="edit-camas" name="camas" class="form-control"></div>
-                            <div class="col-md-4"><label class="form-label">Precio Base ($) *</label><input type="number" id="edit-precio" name="precio_base" class="form-control" step="0.01" required></div>
-                            <div class="col-md-4"><label class="form-label">📸 Nueva Imagen</label><input type="file" name="imagen" class="form-control" accept="image/*"><small class="text-muted">Dejar vacío para mantener la actual</small></div>
-                            <div class="col-12"><label class="form-label">Descripción</label><textarea id="edit-descripcion" name="descripcion" class="form-control" rows="3"></textarea></div>
-                            <div class="col-12"><label class="form-label">Servicios</label><input type="text" id="edit-servicios" name="servicios" class="form-control"></div>
-                        </div>
-                        <div class="text-end mt-4"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button type="submit" class="btn btn-primary">💾 Guardar Cambios</button></div>
-                    </form>
-                </div>
-            </div>
-        </div>
-    </div>
-
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         var mesActual = new Date().getMonth(), añoActual = new Date().getFullYear();
         
-        function cambiarSeccion(seccion) {
-            document.querySelectorAll('[id^="seccion-"]').forEach(function(el) { el.style.display = 'none'; });
-            var el = document.getElementById('seccion-' + seccion); if (el) el.style.display = 'block';
-            document.querySelectorAll('.sidebar .nav-link').forEach(function(l) { l.classList.remove('active'); });
-            document.querySelectorAll('.sidebar .nav-link').forEach(function(l) { if (l.textContent.toLowerCase().includes(seccion)) l.classList.add('active'); });
-            if (window.innerWidth < 768) { var sidebar = document.getElementById('sidebarMenu'); var bsCollapse = new bootstrap.Collapse(sidebar, { toggle: false }); bsCollapse.hide(); }
-            if (seccion === 'dashboard') cargarDashboard();
-            if (seccion === 'calendario') cargarCalendario();
-            if (seccion === 'habitaciones') cargarHabitaciones();
-            if (seccion === 'tarifas') cargarTarifas();
-            if (seccion === 'pagos') cargarPagos();
-            if (seccion === 'reservas') cargarReservas();
-            if (seccion === 'configuracion') cargarConfiguracion();
+        function cambiarSeccion(s) {
+            document.querySelectorAll('[id^="seccion-"]').forEach(e => e.style.display = 'none');
+            var el = document.getElementById('seccion-' + s); if (el) el.style.display = 'block';
+            document.querySelectorAll('.sidebar .nav-link').forEach(l => l.classList.remove('active'));
+            document.querySelectorAll('.sidebar .nav-link').forEach(l => { if (l.textContent.toLowerCase().includes(s)) l.classList.add('active'); });
+            if (window.innerWidth < 768) { var sb = document.getElementById('sidebarMenu'); new bootstrap.Collapse(sb, {toggle: false}).hide(); }
+            if (s === 'dashboard') cargarDashboard();
+            if (s === 'calendario') cargarCalendario();
+            if (s === 'habitaciones') cargarHabitaciones();
+            if (s === 'tarifas') cargarTarifas();
+            if (s === 'pagos') cargarPagos();
+            if (s === 'reservas') cargarReservas();
+            if (s === 'configuracion') cargarConfiguracion();
         }
         
         function cargarDashboard() {
-            var mes = document.getElementById('filtroMes').value;
-            var año = new Date().getFullYear();
+            var mes = document.getElementById('filtroMes').value, año = new Date().getFullYear();
             fetch('/api/habitaciones').then(r => r.json()).then(d => { document.getElementById('total-habs').textContent = d.length; });
             fetch('/api/calendario-completo').then(r => r.json()).then(d => {
                 var hoy = new Date().toISOString().split('T')[0], ocupadas = 0;
-                if (d.ocupacion_por_dia && d.ocupacion_por_dia[hoy]) { ocupadas = d.ocupacion_por_dia[hoy].ocupadas; }
+                if (d.ocupacion_por_dia && d.ocupacion_por_dia[hoy]) ocupadas = d.ocupacion_por_dia[hoy].ocupadas;
                 document.getElementById('ocupadas-hoy').textContent = ocupadas;
             });
             fetch('/api/reservas-pendientes').then(r => r.json()).then(d => { document.getElementById('pendientes-pago').textContent = d.length; });
             fetch('/api/ingresos-mes?mes=' + mes + '&año=' + año).then(r => r.json()).then(d => { document.getElementById('ingresos-mes').textContent = '$' + d.total; });
+            
+            // Indicadores avanzados
+            fetch('/api/indicadores-dashboard').then(r => r.json()).then(d => {
+                if (d.mas_vendida) {
+                    document.getElementById('mas-vendida').textContent = d.mas_vendida.nombre;
+                    document.getElementById('mas-vendida-ingresos').textContent = d.mas_vendida.reservas + ' reservas · $' + d.mas_vendida.ingresos;
+                }
+                if (d.menos_vendida) {
+                    document.getElementById('menos-vendida').textContent = d.menos_vendida.nombre;
+                    document.getElementById('menos-vendida-ingresos').textContent = d.menos_vendida.reservas + ' reservas · $' + d.menos_vendida.ingresos;
+                }
+                if (d.mejor_temporada) {
+                    document.getElementById('mejor-temporada').textContent = d.mejor_temporada.mes;
+                    document.getElementById('mejor-temporada-reservas').textContent = d.mejor_temporada.reservas + ' reservas';
+                }
+            });
         }
         
-        function exportarReservas() { var mes = document.getElementById('filtroMes').value; var año = new Date().getFullYear(); window.open('/api/exportar-reservas?mes=' + mes + '&año=' + año, '_blank'); }
-        function exportarIngresos() { var mes = document.getElementById('filtroMes').value; var año = new Date().getFullYear(); window.open('/api/exportar-ingresos?mes=' + mes + '&año=' + año, '_blank'); }
+        function exportarReservas() { window.open('/api/exportar-reservas?mes=' + document.getElementById('filtroMes').value + '&año=' + new Date().getFullYear(), '_blank'); }
+        function exportarIngresos() { window.open('/api/exportar-ingresos?mes=' + document.getElementById('filtroMes').value + '&año=' + new Date().getFullYear(), '_blank'); }
         function mesAnterior() { mesActual--; if (mesActual < 0) { mesActual = 11; añoActual--; } cargarCalendario(); }
         function mesSiguiente() { mesActual++; if (mesActual > 11) { mesActual = 0; añoActual++; } cargarCalendario(); }
         
@@ -276,177 +233,78 @@
             document.getElementById('titulo-mes').textContent = nombres[mesActual] + ' ' + añoActual;
             fetch('/api/calendario-completo?mes=' + (mesActual + 1) + '&año=' + añoActual).then(r => r.json()).then(d => {
                 var html = '<div class="calendario-grid">';
-                ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'].forEach(function(dia) { html += '<div class="calendario-header">' + dia + '</div>'; });
+                ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'].forEach(dia => { html += '<div class="calendario-header">' + dia + '</div>'; });
                 for (var i = 0; i < d.primer_dia_semana; i++) html += '<div class="calendario-dia vacio"></div>';
                 for (var dia = 1; dia <= d.total_dias; dia++) {
                     var fechaStr = añoActual + '-' + String(mesActual + 1).padStart(2, '0') + '-' + String(dia).padStart(2, '0');
-                    var ocupacion = d.ocupacion_por_dia[fechaStr];
-                    if (ocupacion) {
-                        var disponibles = ocupacion.disponibles, ocupadas = ocupacion.ocupadas, total = ocupacion.total;
-                        if (ocupadas === 0) { html += '<div class="calendario-dia libre"><span>' + dia + '</span><br><small>🟢 ' + disponibles + '/' + total + '</small></div>'; }
-                        else if (disponibles === 0) { html += '<div class="calendario-dia ocupado"><span>' + dia + '</span><br><small>🔴 0/' + total + '</small></div>'; }
-                        else { html += '<div class="calendario-dia" style="background: #fff3e0; color: #e65100; font-weight: 500;"><span>' + dia + '</span><br><small>🟠 ' + disponibles + '/' + total + '</small></div>'; }
-                    } else { html += '<div class="calendario-dia libre"><span>' + dia + '</span><br><small>🟢 -</small></div>'; }
+                    var o = d.ocupacion_por_dia[fechaStr];
+                    if (o) {
+                        if (o.ocupadas === 0) html += '<div class="calendario-dia libre"><span>' + dia + '</span><br><small>🟢 ' + o.disponibles + '/' + o.total + '</small></div>';
+                        else if (o.disponibles === 0) html += '<div class="calendario-dia ocupado"><span>' + dia + '</span><br><small>🔴 0/' + o.total + '</small></div>';
+                        else html += '<div class="calendario-dia" style="background:#fff3e0;color:#e65100;font-weight:500;"><span>' + dia + '</span><br><small>🟠 ' + o.disponibles + '/' + o.total + '</small></div>';
+                    } else html += '<div class="calendario-dia libre"><span>' + dia + '</span><br><small>🟢 -</small></div>';
                 }
-                html += '</div>';
-                document.getElementById('calendario-content').innerHTML = html;
+                html += '</div>'; document.getElementById('calendario-content').innerHTML = html;
             });
         }
         
-        function toggleFormHabitacion() { var f = document.getElementById('form-nueva-habitacion'); f.style.display = (f.style.display === 'none' || f.style.display === '') ? 'block' : 'none'; }
+        function toggleFormHabitacion() { var f = document.getElementById('form-nueva-habitacion'); f.style.display = (f.style.display === 'none' ? 'block' : 'none'); }
         
         function cargarHabitaciones() {
             fetch('/api/habitaciones').then(r => r.json()).then(d => {
-                var html = '';
-                if (d.length === 0) html = '<div class="alert alert-info">No hay habitaciones.</div>';
-                else d.forEach(function(h) {
-                    var img = h.imagen ? '/static/uploads/' + h.imagen : 'https://via.placeholder.com/300x200?text=Sin+Imagen';
-                    html += '<div class="col-md-6 col-lg-4"><div class="habitacion-admin-card"><img src="' + img + '"><div class="mt-2"><h5>' + h.nombre + ' <span class="badge bg-primary">' + h.tipo + '</span></h5><p><strong>$' + h.precio_base + '</strong>/noche · 👥 ' + h.capacidad + ' pers.</p><button class="btn btn-warning btn-sm" onclick="editarHabitacion(' + h.id + ')">✏️ Editar</button> <button class="btn btn-danger btn-sm" onclick="eliminarHabitacion(' + h.id + ')">🗑️</button></div></div></div>';
-                });
+                var html = ''; if (d.length === 0) html = '<div class="alert alert-info">No hay habitaciones.</div>';
+                else d.forEach(h => { var img = h.imagen ? '/static/uploads/' + h.imagen : 'https://via.placeholder.com/300x200?text=Sin+Imagen'; html += '<div class="col-md-6 col-lg-4"><div class="habitacion-admin-card"><img src="' + img + '"><div class="mt-2"><h5>' + h.nombre + ' <span class="badge bg-primary">' + h.tipo + '</span></h5><p><strong>$' + h.precio_base + '</strong>/noche · 👥 ' + h.capacidad + ' pers.</p><button class="btn btn-warning btn-sm" onclick="editarHabitacion(' + h.id + ')">✏️</button> <button class="btn btn-danger btn-sm" onclick="eliminarHabitacion(' + h.id + ')">🗑️</button></div></div></div>'; });
                 document.getElementById('lista-habitaciones').innerHTML = html;
             });
         }
         
-        document.getElementById('formHabitacion').addEventListener('submit', function(e) {
-            e.preventDefault();
-            var fd = new FormData(this), s = fd.get('servicios');
-            if (s) fd.set('servicios', JSON.stringify(s.split(',').map(function(x) { return x.trim(); })));
-            fetch('/api/habitaciones', { method: 'POST', body: fd }).then(r => r.json()).then(function(d) { if (d.id) { alert('✅ Creada!'); toggleFormHabitacion(); cargarHabitaciones(); } });
-        });
+        document.getElementById('formHabitacion').addEventListener('submit', function(e) { e.preventDefault(); var fd = new FormData(this), s = fd.get('servicios'); if (s) fd.set('servicios', JSON.stringify(s.split(',').map(x => x.trim()))); fetch('/api/habitaciones', {method:'POST', body:fd}).then(r => r.json()).then(d => { if (d.id) { alert('✅ Creada!'); toggleFormHabitacion(); cargarHabitaciones(); } }); });
+        function editarHabitacion(id) { fetch('/api/habitaciones').then(r => r.json()).then(habs => { const h = habs.find(x => x.id === id); if (!h) return; document.getElementById('edit-hab-id').value = h.id; document.getElementById('edit-nombre').value = h.nombre || ''; document.getElementById('edit-tipo').value = h.tipo || ''; document.getElementById('edit-capacidad').value = h.capacidad || 1; document.getElementById('edit-camas').value = h.camas || ''; document.getElementById('edit-precio').value = h.precio_base || 0; document.getElementById('edit-descripcion').value = h.descripcion || ''; let s = h.servicios; if (Array.isArray(s)) s = s.join(', '); else try { s = JSON.parse(s).join(', '); } catch(e) {} document.getElementById('edit-servicios').value = s || ''; new bootstrap.Modal(document.getElementById('modalEditarHabitacion')).show(); }); }
+        function eliminarHabitacion(id) { if (confirm('¿Eliminar?')) fetch('/api/habitaciones/' + id, {method:'DELETE'}).then(() => cargarHabitaciones()); }
+        function cambiarTipoTarifa() { var t = document.getElementById('tipoTarifa').value; document.getElementById('divFechasContainer').style.display = t === 'rango_fechas' ? 'flex' : 'none'; document.getElementById('divDias').style.display = t !== 'rango_fechas' ? 'flex' : 'none'; }
         
-        function editarHabitacion(id) {
-            fetch('/api/habitaciones').then(r => r.json()).then(habitaciones => {
-                const hab = habitaciones.find(h => h.id === id);
-                if (!hab) return alert('Habitación no encontrada');
-                document.getElementById('edit-hab-id').value = hab.id;
-                document.getElementById('edit-nombre').value = hab.nombre || '';
-                document.getElementById('edit-tipo').value = hab.tipo || 'matrimonial';
-                document.getElementById('edit-capacidad').value = hab.capacidad || 1;
-                document.getElementById('edit-camas').value = hab.camas || '';
-                document.getElementById('edit-precio').value = hab.precio_base || 0;
-                document.getElementById('edit-descripcion').value = hab.descripcion || '';
-                let servicios = hab.servicios;
-                if (Array.isArray(servicios)) { servicios = servicios.join(', '); }
-                else if (typeof servicios === 'string') { try { servicios = JSON.parse(servicios).join(', '); } catch(e) { servicios = servicios; } }
-                document.getElementById('edit-servicios').value = servicios || 'wifi, ac, tv';
-                const modal = new bootstrap.Modal(document.getElementById('modalEditarHabitacion'));
-                modal.show();
-            });
-        }
+        document.getElementById('formTarifa').addEventListener('submit', function(e) { e.preventDefault(); var fd = new FormData(this), data = {}; fd.forEach((v,k) => data[k] = v); var dias = []; document.querySelectorAll('input[name="dia"]:checked').forEach(cb => dias.push(cb.value)); data.multiplicador = parseFloat(data.precio_extra); data.dias_aplicacion = dias.join(',') || null; fetch('/api/tarifas', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)}).then(() => { alert('✅ Tarifa creada!'); cargarTarifas(); }); });
         
-        document.getElementById('formEditarHabitacion').addEventListener('submit', function(e) {
-            e.preventDefault();
-            const id = document.getElementById('edit-hab-id').value;
-            const formData = new FormData(this);
-            let servicios = formData.get('servicios');
-            if (servicios) { servicios = JSON.stringify(servicios.split(',').map(s => s.trim())); formData.set('servicios', servicios); }
-            fetch('/api/habitaciones/' + id, { method: 'PUT', body: formData })
-            .then(r => r.json()).then(data => {
-                if (data.message) { alert('✅ Actualizada'); bootstrap.Modal.getInstance(document.getElementById('modalEditarHabitacion')).hide(); cargarHabitaciones(); cargarDashboard(); }
-                else { alert('❌ Error'); }
-            });
-        });
+        function cargarTarifas() { fetch('/api/tarifas').then(r => r.json()).then(d => { var html = '<h5>Tarifas activas:</h5>'; if (d.length === 0) html += '<p class="text-muted">No hay tarifas.</p>'; else d.forEach(t => { var tipoTexto = t.tipo === 'rango_fechas' ? '📅 Rango' : '📆 Días'; var detalle = t.tipo === 'rango_fechas' ? (t.fecha_inicio + ' → ' + t.fecha_fin) : (t.dias_aplicacion ? t.dias_aplicacion.split(',').map(d => ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'][parseInt(d)]).join(',') : ''); var signo = t.multiplicador >= 0 ? '+' : ''; html += '<div class="d-flex justify-content-between p-2 bg-light rounded mb-2"><span><strong>' + t.nombre + '</strong> (' + signo + '$' + t.multiplicador + '/noche) <span class="badge bg-info">' + tipoTexto + '</span></span><span>' + detalle + ' <button class="btn btn-danger btn-sm" onclick="eliminarTarifa(' + t.id + ')">🗑️</button></span></div>'; }); document.getElementById('lista-tarifas').innerHTML = html; }); }
+        function eliminarTarifa(id) { if (confirm('¿Eliminar?')) fetch('/api/tarifas/' + id, {method:'DELETE'}).then(() => cargarTarifas()); }
         
-        function eliminarHabitacion(id) { if (confirm('¿Eliminar?')) fetch('/api/habitaciones/' + id, { method: 'DELETE' }).then(function() { cargarHabitaciones(); }); }
+        function cargarPagos() { fetch('/api/reservas-pendientes').then(r => r.json()).then(d => { var html = ''; if (d.length === 0) html = '<div class="alert alert-info">✅ No hay pagos pendientes</div>'; else d.forEach(r => { html += '<div class="pago-pendiente"><div class="row"><div class="col-md-6"><span class="localizador-badge">🔑 ' + r.localizador + '</span><br><strong>' + r.cliente_nombre + '</strong>' + (r.solo_reserva ? ' <span class="badge bg-warning">⏱️</span>' : '') + '<p>📞 ' + r.cliente_telefono + '</p><small>📅 ' + r.fecha_entrada + ' → ' + r.fecha_salida + '</small>' + (r.fecha_expiracion ? '<br><small class="text-danger">⏰ Expira: ' + r.fecha_expiracion + '</small>' : '') + (r.comprobante ? '<br><a href="/static/uploads/' + r.comprobante + '" target="_blank" class="btn btn-sm btn-info">📎</a>' : '') + (r.aprobado_por ? '<br><small>👤 ' + r.aprobado_por + '</small>' : '') + (r.comentario_rechazo ? '<br><small class="text-danger">❌ ' + r.comentario_rechazo + '</small>' : '') + '</div><div class="col-md-6 text-end"><h4>$' + r.total + '</h4><span class="badge bg-primary">' + (r.metodo_pago || '-') + '</span><br><button class="btn btn-success btn-sm mt-1" onclick="validarPago(' + r.id + ',\'confirmada\')">✅</button> <button class="btn btn-danger btn-sm mt-1" onclick="validarPago(' + r.id + ',\'cancelada\')">❌</button></div></div></div>'; }); document.getElementById('lista-pagos').innerHTML = html; }); }
         
-        // ============ TARIFAS ============
-        function cambiarTipoTarifa() {
-            var tipo = document.getElementById('tipoTarifa').value;
-            document.getElementById('divFechasContainer').style.display = tipo === 'rango_fechas' ? 'flex' : 'none';
-            document.getElementById('divDias').style.display = tipo !== 'rango_fechas' ? 'flex' : 'none';
-            document.getElementById('fecha_inicio').required = tipo === 'rango_fechas';
-            document.getElementById('fecha_fin').required = tipo === 'rango_fechas';
-        }
+        function cargarReservas() { fetch('/api/todas-reservas').then(r => r.json()).then(d => { var html = ''; if (d.length === 0) html = '<div class="alert alert-info">📋 No hay reservas</div>'; else { html += '<div class="table-responsive"><table class="table table-striped"><thead><tr><th>Localizador</th><th>Cliente</th><th>Hab</th><th>In</th><th>Out</th><th>$</th><th>Estado</th><th>Expira</th><th>Pago</th><th>Info</th></tr></thead><tbody>'; d.forEach(r => { var ec = r.estado === 'confirmada' ? 'success' : r.estado === 'pago_reportado' ? 'warning' : r.estado === 'pendiente' ? 'info' : 'danger'; var info = ''; if (r.aprobado_por) info += '<small class="text-success">✅ ' + r.aprobado_por + '</small>'; if (r.comentario_rechazo) info += '<small class="text-danger">❌ ' + r.comentario_rechazo + '</small>'; html += '<tr><td><span class="localizador-badge">' + r.localizador + '</span>' + (r.solo_reserva ? ' ⏱️' : '') + '</td><td><strong>' + r.cliente_nombre + '</strong><br><small>📞 ' + r.cliente_telefono + '</small></td><td>' + (r.habitacion_nombre || '-') + '</td><td>' + r.fecha_entrada + '</td><td>' + r.fecha_salida + '</td><td>$' + r.total + '</td><td><span class="badge bg-' + ec + '">' + r.estado + '</span></td><td><small>' + (r.fecha_expiracion || '-') + '</small></td><td>' + (r.metodo_pago || '-') + '</td><td>' + (info || '-') + '</td></tr>'; }); html += '</tbody></table></div>'; } document.getElementById('lista-reservas').innerHTML = html; }); }
         
-        document.getElementById('formTarifa').addEventListener('submit', function(e) {
-            e.preventDefault();
-            var fd = new FormData(this), data = {};
-            fd.forEach(function(v, k) { data[k] = v; });
-            var dias = [];
-            document.querySelectorAll('input[name="dia"]:checked').forEach(function(cb) { dias.push(cb.value); });
-            data.multiplicador = parseFloat(data.precio_extra);
-            data.dias_aplicacion = dias.join(',') || null;
-            if (data.tipo === 'rango_fechas' && (!data.fecha_inicio || !data.fecha_fin)) { alert('⚠️ Debe seleccionar fecha inicio y fin'); return; }
-            fetch('/api/tarifas', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) }).then(function() { alert('✅ Tarifa creada!'); cargarTarifas(); });
-        });
+        function validarPago(id, accion) { var c = ''; if (accion === 'cancelada') { c = prompt('¿Motivo?'); if (!c) return; } if (confirm('¿' + (accion === 'confirmada' ? 'Aprobar' : 'Rechazar') + '?')) fetch('/api/validar-pago/' + id, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({accion:accion, comentario:c})}).then(() => { cargarPagos(); cargarDashboard(); }); }
         
-        function cargarTarifas() {
-            fetch('/api/tarifas').then(r => r.json()).then(d => {
-                var html = '<h5>Tarifas activas:</h5>';
-                if (d.length === 0) html += '<p class="text-muted">No hay tarifas configuradas.</p>';
-                else d.forEach(function(t) {
-                    var tipoTexto = t.tipo === 'rango_fechas' ? '📅 Rango Fechas' : t.tipo === 'dias_semana' ? '📆 Días Semana' : '🎯 Días Específicos';
-                    var detalle = '';
-                    if (t.tipo === 'rango_fechas') { detalle = t.fecha_inicio + ' → ' + t.fecha_fin; }
-                    else {
-                        var diasNombres = ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
-                        var diasArr = t.dias_aplicacion ? t.dias_aplicacion.split(',') : [];
-                        detalle = diasArr.map(function(d) { return diasNombres[parseInt(d)]; }).join(', ');
-                    }
-                    var signo = t.multiplicador >= 0 ? '+' : '';
-                    html += '<div class="d-flex justify-content-between align-items-center p-2 bg-light rounded mb-2">' +
-                        '<div><strong>' + t.nombre + '</strong> <span class="badge ' + (t.multiplicador >= 0 ? 'bg-danger' : 'bg-success') + '">' + signo + '$' + Math.abs(t.multiplicador) + '/noche</span> <span class="badge bg-info">' + tipoTexto + '</span></div>' +
-                        '<div><span class="me-3">' + detalle + '</span><button class="btn btn-danger btn-sm" onclick="eliminarTarifa(' + t.id + ')">🗑️</button></div>' +
-                        '</div>';
-                });
-                document.getElementById('lista-tarifas').innerHTML = html;
-            });
-        }
-        
-        function eliminarTarifa(id) { if (confirm('¿Eliminar esta tarifa?')) fetch('/api/tarifas/' + id, { method: 'DELETE' }).then(function() { cargarTarifas(); }); }
-        
-        // ============ PAGOS ============
-        function cargarPagos() {
-            fetch('/api/reservas-pendientes').then(r => r.json()).then(d => {
-                var html = '';
-                if (d.length === 0) html = '<div class="alert alert-info">✅ No hay pagos pendientes</div>';
-                else d.forEach(function(r) { 
-                    let huespedesHTML = '';
-                    if (r.datos_huespedes) { try { const huespedes = JSON.parse(r.datos_huespedes); huespedes.forEach(h => { huespedesHTML += '<small>👤 ' + h.nombre + ' - ' + h.tipo_documento + ': ' + h.documento + ' (' + h.tipo + ')</small><br>'; }); } catch(e) {} }
-                    html += '<div class="pago-pendiente"><div class="row"><div class="col-md-6"><strong>' + r.cliente_nombre + '</strong>' + (r.solo_reserva ? ' <span class="badge bg-warning">⏱️ Solo Reserva</span>' : '') + '<p>📞 ' + r.cliente_telefono + ' | 📧 ' + (r.cliente_email || 'N/A') + '</p><small>📅 ' + r.fecha_entrada + ' → ' + r.fecha_salida + '</small>' + (r.fecha_expiracion ? '<br><small class="text-danger">⏰ Expira: ' + r.fecha_expiracion + '</small>' : '') + '<div class="mt-2">' + huespedesHTML + '</div>' + (r.comprobante ? '<a href="/static/uploads/' + r.comprobante + '" target="_blank" class="btn btn-sm btn-info mt-1">📎 Ver Comprobante</a>' : '') + (r.aprobado_por ? '<br><small>👤 ' + r.aprobado_por + ' - ' + (r.fecha_aprobacion || '') + '</small>' : '') + (r.comentario_rechazo ? '<br><small class="text-danger">❌ ' + r.comentario_rechazo + '</small>' : '') + '</div><div class="col-md-6 text-end"><h4 class="text-success">$' + r.total + '</h4><p><span class="badge bg-primary">' + (r.metodo_pago || 'Sin método') + '</span></p><button class="btn btn-success btn-sm" onclick="validarPago(' + r.id + ', \'confirmada\')">✅ Aprobar</button> <button class="btn btn-danger btn-sm" onclick="validarPago(' + r.id + ', \'cancelada\')">❌ Rechazar</button></div></div></div>';
-                });
-                document.getElementById('lista-pagos').innerHTML = html;
-            });
-        }
-        
-        function cargarReservas() {
-            fetch('/api/todas-reservas').then(r => r.json()).then(d => {
-                var html = '';
-                if (d.length === 0) html = '<div class="alert alert-info">📋 No hay reservas registradas</div>';
-                else {
-                    html += '<div class="table-responsive"><table class="table table-striped table-hover"><thead><tr><th>ID</th><th>Cliente</th><th>Habitación</th><th>Entrada</th><th>Salida</th><th>Total</th><th>Estado</th><th>Expira</th><th>Pago</th><th>Historial</th></tr></thead><tbody>';
-                    d.forEach(function(r) {
-                        var estadoColor = r.estado === 'confirmada' ? 'success' : r.estado === 'pago_reportado' ? 'warning' : r.estado === 'pendiente' ? 'info' : r.estado === 'cancelada' ? 'danger' : 'secondary';
-                        var historialHTML = '';
-                        if (r.aprobado_por) { historialHTML += '<small class="text-success">✅ ' + r.aprobado_por + '<br>' + (r.fecha_aprobacion || '') + '</small>'; }
-                        if (r.comentario_rechazo) { historialHTML += '<small class="text-danger">❌ ' + r.comentario_rechazo + '</small>'; }
-                        if (!r.aprobado_por && !r.comentario_rechazo) { historialHTML = '<small class="text-muted">-</small>'; }
-                        html += '<tr><td>#' + r.id + (r.solo_reserva ? ' ⏱️' : '') + '</td><td><strong>' + r.cliente_nombre + '</strong><br><small>📞 ' + r.cliente_telefono + '</small></td><td><span class="badge bg-primary">' + (r.habitacion_nombre || 'N/A') + '</span></td><td>' + r.fecha_entrada + '</td><td>' + r.fecha_salida + '</td><td><strong>$' + r.total + '</strong></td><td><span class="badge bg-' + estadoColor + '">' + r.estado + '</span></td><td><small>' + (r.fecha_expiracion || '-') + '</small></td><td>' + (r.metodo_pago || '-') + '</td><td>' + historialHTML + '</td></tr>';
-                    });
-                    html += '</tbody></table></div>';
+        function cargarConfiguracion() { 
+            fetch('/api/configuracion').then(r => r.json()).then(d => { 
+                if (d.configuracion && d.configuracion.tiempo_expiracion) document.getElementById('tiempoExpiracion').value = d.configuracion.tiempo_expiracion; 
+                if (d.posada) {
+                    document.getElementById('posadaNombre').value = d.posada.nombre || '';
+                    document.getElementById('posadaDireccion').value = d.posada.direccion || '';
+                    document.getElementById('posadaTelefono').value = d.posada.telefono || '';
+                    document.getElementById('posadaEmail').value = d.posada.email || '';
+                    document.getElementById('posadaColorPrimario').value = d.posada.color_primario || '#2C5F8A';
+                    document.getElementById('posadaColorSecundario').value = d.posada.color_secundario || '#51CF66';
                 }
-                document.getElementById('lista-reservas').innerHTML = html;
-            });
+            }); 
         }
         
-        function validarPago(id, accion) { 
-            var comentario = '';
-            if (accion === 'cancelada') { comentario = prompt('¿Motivo del rechazo?'); if (!comentario) return; }
-            if (confirm('¿' + (accion === 'confirmada' ? 'Aprobar' : 'Rechazar') + ' esta reserva?')) {
-                fetch('/api/validar-pago/' + id, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({accion: accion, comentario: comentario}) }).then(function() { cargarPagos(); cargarDashboard(); }); 
-            }
+        function guardarConfiguracion() { 
+            fetch('/api/configuracion', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({
+                configuracion: {tiempo_expiracion: document.getElementById('tiempoExpiracion').value}
+            })}).then(() => { var m = document.getElementById('msgConfig'); m.style.display = 'block'; m.textContent = '✅ Guardado'; setTimeout(() => m.style.display = 'none', 2000); }); 
         }
         
-        function cargarConfiguracion() {
-            fetch('/api/configuracion').then(r => r.json()).then(d => { if (d.tiempo_expiracion) document.getElementById('tiempoExpiracion').value = d.tiempo_expiracion; });
-        }
-        
-        function guardarConfiguracion() {
-            var tiempo = document.getElementById('tiempoExpiracion').value;
-            fetch('/api/configuracion', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({tiempo_expiracion: tiempo}) }).then(r => r.json()).then(d => {
-                var msg = document.getElementById('msgConfig'); msg.style.display = 'block'; msg.textContent = '✅ Configuración guardada';
-                setTimeout(function() { msg.style.display = 'none'; }, 3000);
-            });
+        function guardarDatosPosada() {
+            fetch('/api/configuracion', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({
+                posada: {
+                    nombre: document.getElementById('posadaNombre').value,
+                    direccion: document.getElementById('posadaDireccion').value,
+                    telefono: document.getElementById('posadaTelefono').value,
+                    email: document.getElementById('posadaEmail').value,
+                    color_primario: document.getElementById('posadaColorPrimario').value,
+                    color_secundario: document.getElementById('posadaColorSecundario').value
+                }
+            })}).then(() => { alert('✅ Datos de la posada guardados'); });
         }
         
         document.getElementById('filtroMes').value = new Date().getMonth() + 1;

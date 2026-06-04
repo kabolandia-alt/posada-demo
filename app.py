@@ -121,13 +121,12 @@ class LogActividad(db.Model):
 # ============================================================
 
 def generar_localizador(posada_id):
-    """Genera un localizador único tipo POS-ABC123 reutilizable cada 3 meses"""
+    """Genera un localizador único de 6 caracteres (3 letras + 3 números) reutilizable cada 3 meses"""
     while True:
         letras = ''.join(random.choices(string.ascii_uppercase, k=3))
         numeros = ''.join(random.choices(string.digits, k=3))
-        localizador = f"POS-{letras}{numeros}"
+        localizador = f"{letras}{numeros}"
         
-        # Verificar que no existe en los últimos 3 meses
         hace_3_meses = datetime.utcnow() - timedelta(days=90)
         existe = Reserva.query.filter(
             Reserva.localizador == localizador,
@@ -411,7 +410,6 @@ def crear_reserva():
         solo_reserva = metodo_pago == 'solo_reserva'
         expiracion = datetime.utcnow() + timedelta(minutes=40) if solo_reserva else None
         
-        # Generar localizador único
         localizador = generar_localizador(hab.posada_id)
         
         reserva = Reserva(
@@ -450,7 +448,6 @@ def crear_reserva():
 @app.route('/api/reservas/<int:reserva_id>', methods=['PUT'])
 @login_required
 def editar_reserva(reserva_id):
-    """Solo admin puede editar reservas"""
     if current_user.rol != 'admin':
         return jsonify({'error': 'No autorizado. Solo administradores.'}), 403
     
@@ -681,7 +678,6 @@ def indicadores_dashboard():
         ahora = datetime.utcnow()
         hace_90_dias = ahora - timedelta(days=90)
         
-        # Habitación más y menos vendida
         reservas_90d = Reserva.query.filter(
             Reserva.posada_id == posada_id,
             Reserva.estado == 'confirmada',
@@ -700,9 +696,9 @@ def indicadores_dashboard():
         mas_vendida = max(ventas_por_hab.items(), key=lambda x: x[1]['cantidad']) if ventas_por_hab else None
         menos_vendida = min(ventas_por_hab.items(), key=lambda x: x[1]['cantidad']) if ventas_por_hab else None
         
-        # Mejor temporada
         ocupacion_por_mes = {}
-        nombres_meses = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
+        nombres_meses = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
+                        'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
         for r in reservas_90d:
             mes = r.fecha_entrada.month
             if mes not in ocupacion_por_mes:
@@ -711,7 +707,6 @@ def indicadores_dashboard():
         
         mejor_mes = max(ocupacion_por_mes.items(), key=lambda x: x[1]) if ocupacion_por_mes else None
         
-        # Ocupación actual
         hoy = ahora.date()
         ocupadas_hoy = Reserva.query.filter(
             Reserva.posada_id == posada_id,
@@ -750,7 +745,6 @@ def indicadores_dashboard():
 @app.route('/api/logs')
 @login_required
 def ver_logs():
-    """Ver logs de actividad (solo admin)"""
     if current_user.rol != 'admin':
         return jsonify({'error': 'No autorizado'}), 403
     
@@ -801,7 +795,6 @@ def obtener_configuracion():
 @login_required
 def guardar_configuracion():
     data = request.json
-    # Guardar configuraciones
     if 'configuracion' in data:
         for clave, valor in data['configuracion'].items():
             config = Configuracion.query.filter_by(posada_id=current_user.posada_id, clave=clave).first()
@@ -810,7 +803,6 @@ def guardar_configuracion():
             else:
                 db.session.add(Configuracion(clave=clave, valor=str(valor), posada_id=current_user.posada_id))
     
-    # Guardar datos de la posada (personalización)
     if 'posada' in data:
         posada = db.session.get(Posada, current_user.posada_id)
         if posada:
