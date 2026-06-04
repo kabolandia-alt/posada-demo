@@ -1,4 +1,6 @@
 import os
+import random
+import string
 from flask import Flask, render_template, request, jsonify, redirect, url_for, Response, session
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
@@ -32,6 +34,10 @@ class Posada(db.Model):
     direccion = db.Column(db.String(200))
     telefono = db.Column(db.String(20))
     email = db.Column(db.String(100))
+    logo = db.Column(db.String(200))
+    color_primario = db.Column(db.String(7), default='#2C5F8A')
+    color_secundario = db.Column(db.String(7), default='#51CF66')
+    activo = db.Column(db.Boolean, default=True)
 
 class Usuario(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -55,6 +61,7 @@ class Habitacion(db.Model):
 
 class Reserva(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+    localizador = db.Column(db.String(20), unique=True, nullable=True)
     cliente_nombre = db.Column(db.String(100))
     cliente_cedula = db.Column(db.String(20))
     cliente_telefono = db.Column(db.String(20))
@@ -101,9 +108,48 @@ class Configuracion(db.Model):
     valor = db.Column(db.String(100))
     posada_id = db.Column(db.Integer, db.ForeignKey('posada.id'))
 
+class LogActividad(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    usuario_id = db.Column(db.Integer, db.ForeignKey('usuario.id'))
+    accion = db.Column(db.String(50))
+    descripcion = db.Column(db.Text)
+    fecha = db.Column(db.DateTime, default=datetime.utcnow)
+    posada_id = db.Column(db.Integer, db.ForeignKey('posada.id'))
+
 # ============================================================
 # FUNCIONES AUXILIARES
 # ============================================================
+
+def generar_localizador(posada_id):
+    """Genera un localizador único tipo POS-ABC123 reutilizable cada 3 meses"""
+    while True:
+        letras = ''.join(random.choices(string.ascii_uppercase, k=3))
+        numeros = ''.join(random.choices(string.digits, k=3))
+        localizador = f"POS-{letras}{numeros}"
+        
+        # Verificar que no existe en los últimos 3 meses
+        hace_3_meses = datetime.utcnow() - timedelta(days=90)
+        existe = Reserva.query.filter(
+            Reserva.localizador == localizador,
+            Reserva.fecha_reserva > hace_3_meses
+        ).first()
+        
+        if not existe:
+            return localizador
+
+def registrar_log(usuario_id, accion, descripcion, posada_id=None):
+    """Registra una acción en los logs del sistema"""
+    try:
+        log = LogActividad(
+            usuario_id=usuario_id,
+            accion=accion,
+            descripcion=descripcion,
+            posada_id=posada_id or 1
+        )
+        db.session.add(log)
+        db.session.commit()
+    except:
+        pass
 
 def cancelar_reservas_expiradas():
     ahora = datetime.utcnow()
@@ -153,6 +199,7 @@ def login_admin():
         user = Usuario.query.filter_by(username=username).first()
         if user and check_password_hash(user.password_hash, password):
             login_user(user)
+            registrar_log(user.id, 'login', f'Inicio de sesión de {user.username}')
             return redirect(url_for('panel_admin'))
     return render_template('admin/login.html')
 
@@ -164,6 +211,7 @@ def panel_admin():
 @app.route('/admin/logout')
 @login_required
 def logout_admin():
+    registrar_log(current_user.id, 'logout', f'Cierre de sesión de {current_user.username}')
     logout_user()
     return redirect(url_for('login_admin'))
 
@@ -213,6 +261,9 @@ def crear_habitacion():
         )
         db.session.add(hab)
         db.session.commit()
+        
+        registrar_log(current_user.id, 'crear_habitacion', f'Creó habitación: {nombre}')
+        
         return jsonify({'message': 'Habitacion creada', 'id': hab.id})
     except Exception as e:
         db.session.rollback()
@@ -248,6 +299,8 @@ def actualizar_habitacion(id):
                     hab.imagen = filename
         
         db.session.commit()
+        registrar_log(current_user.id, 'editar_habitacion', f'Editó habitación: {hab.nombre}')
+        
         return jsonify({'message': 'Actualizada correctamente'})
     except Exception as e:
         db.session.rollback()
@@ -258,8 +311,10 @@ def actualizar_habitacion(id):
 def eliminar_habitacion(id):
     hab = db.session.get(Habitacion, id)
     if hab and hab.posada_id == current_user.posada_id:
+        nombre = hab.nombre
         db.session.delete(hab)
         db.session.commit()
+        registrar_log(current_user.id, 'eliminar_habitacion', f'Eliminó habitación: {nombre}')
         return jsonify({'message': 'Eliminada'})
     return jsonify({'error': 'No encontrada'}), 404
 
@@ -356,7 +411,11 @@ def crear_reserva():
         solo_reserva = metodo_pago == 'solo_reserva'
         expiracion = datetime.utcnow() + timedelta(minutes=40) if solo_reserva else None
         
+        # Generar localizador único
+        localizador = generar_localizador(hab.posada_id)
+        
         reserva = Reserva(
+            localizador=localizador,
             cliente_nombre=datos.get('cliente_nombre', ''),
             cliente_cedula=datos.get('cliente_cedula', ''),
             cliente_telefono=datos.get('cliente_telefono', ''),
@@ -376,11 +435,50 @@ def crear_reserva():
         db.session.add(reserva)
         db.session.commit()
         
+        registrar_log(1, 'nueva_reserva', f'Nueva reserva: {localizador} - {hab.nombre}')
+        
         return jsonify({
             'message': 'Reserva creada exitosamente',
             'reserva_id': reserva.id,
+            'localizador': reserva.localizador,
             'total': round(total, 2)
         })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/reservas/<int:reserva_id>', methods=['PUT'])
+@login_required
+def editar_reserva(reserva_id):
+    """Solo admin puede editar reservas"""
+    if current_user.rol != 'admin':
+        return jsonify({'error': 'No autorizado. Solo administradores.'}), 403
+    
+    reserva = db.session.get(Reserva, reserva_id)
+    if not reserva or reserva.posada_id != current_user.posada_id:
+        return jsonify({'error': 'Reserva no encontrada'}), 404
+    
+    try:
+        data = request.json
+        if 'cliente_nombre' in data:
+            reserva.cliente_nombre = data['cliente_nombre']
+        if 'cliente_telefono' in data:
+            reserva.cliente_telefono = data['cliente_telefono']
+        if 'cliente_email' in data:
+            reserva.cliente_email = data['cliente_email']
+        if 'fecha_entrada' in data:
+            reserva.fecha_entrada = datetime.strptime(data['fecha_entrada'], '%Y-%m-%d').date()
+        if 'fecha_salida' in data:
+            reserva.fecha_salida = datetime.strptime(data['fecha_salida'], '%Y-%m-%d').date()
+        if 'estado' in data:
+            reserva.estado = data['estado']
+        if 'total' in data:
+            reserva.total = float(data['total'])
+        
+        db.session.commit()
+        registrar_log(current_user.id, 'editar_reserva', f'Editó reserva {reserva.localizador}')
+        
+        return jsonify({'message': 'Reserva actualizada correctamente'})
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
@@ -417,6 +515,7 @@ def crear_tarifa():
         )
         db.session.add(tarifa)
         db.session.commit()
+        registrar_log(current_user.id, 'crear_tarifa', f'Creó tarifa: {data["nombre"]}')
         return jsonify({'message': 'Tarifa creada'})
     except Exception as e:
         db.session.rollback()
@@ -427,8 +526,10 @@ def crear_tarifa():
 def eliminar_tarifa(id):
     tarifa = db.session.get(Tarifa, id)
     if tarifa and tarifa.posada_id == current_user.posada_id:
+        nombre = tarifa.nombre
         db.session.delete(tarifa)
         db.session.commit()
+        registrar_log(current_user.id, 'eliminar_tarifa', f'Eliminó tarifa: {nombre}')
         return jsonify({'message': 'Tarifa eliminada'})
     return jsonify({'error': 'No encontrada'}), 404
 
@@ -496,6 +597,7 @@ def reservas_pendientes():
         
         resultado.append({
             'id': r.id,
+            'localizador': r.localizador,
             'cliente_nombre': r.cliente_nombre,
             'cliente_telefono': r.cliente_telefono or 'No registrado',
             'cliente_email': r.cliente_email or 'No registrado',
@@ -535,6 +637,7 @@ def todas_reservas():
         
         resultado.append({
             'id': r.id,
+            'localizador': r.localizador,
             'cliente_nombre': r.cliente_nombre,
             'cliente_telefono': r.cliente_telefono or 'No registrado',
             'cliente_email': r.cliente_email or 'No registrado',
@@ -569,18 +672,111 @@ def ingresos_mes():
     ).all()
     return jsonify({'total': round(sum(r.total for r in reservas), 2), 'cantidad': len(reservas)})
 
+@app.route('/api/indicadores-dashboard')
+@login_required
+def indicadores_dashboard():
+    """Indicadores avanzados para el dashboard"""
+    try:
+        posada_id = current_user.posada_id
+        ahora = datetime.utcnow()
+        hace_90_dias = ahora - timedelta(days=90)
+        
+        # Habitación más y menos vendida
+        reservas_90d = Reserva.query.filter(
+            Reserva.posada_id == posada_id,
+            Reserva.estado == 'confirmada',
+            Reserva.fecha_reserva >= hace_90_dias
+        ).all()
+        
+        ventas_por_hab = {}
+        for r in reservas_90d:
+            hab = db.session.get(Habitacion, r.habitacion_id)
+            nombre = hab.nombre if hab else 'Desconocida'
+            if nombre not in ventas_por_hab:
+                ventas_por_hab[nombre] = {'cantidad': 0, 'ingresos': 0}
+            ventas_por_hab[nombre]['cantidad'] += 1
+            ventas_por_hab[nombre]['ingresos'] += r.total
+        
+        mas_vendida = max(ventas_por_hab.items(), key=lambda x: x[1]['cantidad']) if ventas_por_hab else None
+        menos_vendida = min(ventas_por_hab.items(), key=lambda x: x[1]['cantidad']) if ventas_por_hab else None
+        
+        # Mejor temporada
+        ocupacion_por_mes = {}
+        nombres_meses = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
+        for r in reservas_90d:
+            mes = r.fecha_entrada.month
+            if mes not in ocupacion_por_mes:
+                ocupacion_por_mes[mes] = 0
+            ocupacion_por_mes[mes] += 1
+        
+        mejor_mes = max(ocupacion_por_mes.items(), key=lambda x: x[1]) if ocupacion_por_mes else None
+        
+        # Ocupación actual
+        hoy = ahora.date()
+        ocupadas_hoy = Reserva.query.filter(
+            Reserva.posada_id == posada_id,
+            Reserva.estado != 'cancelada',
+            Reserva.fecha_entrada <= hoy,
+            Reserva.fecha_salida >= hoy
+        ).count()
+        
+        total_habitaciones = Habitacion.query.filter_by(posada_id=posada_id).count()
+        
+        return jsonify({
+            'mas_vendida': {
+                'nombre': mas_vendida[0],
+                'reservas': mas_vendida[1]['cantidad'],
+                'ingresos': round(mas_vendida[1]['ingresos'], 2)
+            } if mas_vendida else None,
+            'menos_vendida': {
+                'nombre': menos_vendida[0],
+                'reservas': menos_vendida[1]['cantidad'],
+                'ingresos': round(menos_vendida[1]['ingresos'], 2)
+            } if menos_vendida else None,
+            'mejor_temporada': {
+                'mes': nombres_meses[mejor_mes[0]-1],
+                'reservas': mejor_mes[1]
+            } if mejor_mes else None,
+            'ocupacion_hoy': {
+                'ocupadas': ocupadas_hoy,
+                'total': total_habitaciones,
+                'porcentaje': round((ocupadas_hoy / total_habitaciones * 100) if total_habitaciones > 0 else 0, 1)
+            },
+            'total_reservas_90d': len(reservas_90d)
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/logs')
+@login_required
+def ver_logs():
+    """Ver logs de actividad (solo admin)"""
+    if current_user.rol != 'admin':
+        return jsonify({'error': 'No autorizado'}), 403
+    
+    logs = LogActividad.query.order_by(LogActividad.fecha.desc()).limit(100).all()
+    return jsonify([{
+        'id': log.id,
+        'usuario': db.session.get(Usuario, log.usuario_id).username if log.usuario_id else 'Sistema',
+        'accion': log.accion,
+        'descripcion': log.descripcion,
+        'fecha': (log.fecha - timedelta(hours=4)).strftime('%d/%m/%Y %H:%M:%S')
+    } for log in logs])
+
 @app.route('/api/validar-pago/<int:reserva_id>', methods=['POST'])
 @login_required
 def validar_pago(reserva_id):
     data = request.json
     reserva = db.session.get(Reserva, reserva_id)
     if reserva and reserva.posada_id == current_user.posada_id:
-        reserva.estado = data.get('accion', 'confirmada')
+        accion = data.get('accion', 'confirmada')
+        reserva.estado = accion
         reserva.aprobado_por = current_user.username
         reserva.fecha_aprobacion = datetime.utcnow()
         if reserva.estado == 'cancelada':
             reserva.comentario_rechazo = data.get('comentario', '')
         db.session.commit()
+        registrar_log(current_user.id, 'validar_pago', f'{accion} reserva {reserva.localizador}')
         return jsonify({'message': 'Actualizado'})
     return jsonify({'error': 'No encontrada'}), 404
 
@@ -588,19 +784,42 @@ def validar_pago(reserva_id):
 @login_required
 def obtener_configuracion():
     configs = Configuracion.query.filter_by(posada_id=current_user.posada_id).all()
-    return jsonify({c.clave: c.valor for c in configs})
+    posada = db.session.get(Posada, current_user.posada_id)
+    return jsonify({
+        'configuracion': {c.clave: c.valor for c in configs},
+        'posada': {
+            'nombre': posada.nombre,
+            'direccion': posada.direccion,
+            'telefono': posada.telefono,
+            'email': posada.email,
+            'color_primario': posada.color_primario,
+            'color_secundario': posada.color_secundario
+        } if posada else None
+    })
 
 @app.route('/api/configuracion', methods=['POST'])
 @login_required
 def guardar_configuracion():
     data = request.json
-    for clave, valor in data.items():
-        config = Configuracion.query.filter_by(posada_id=current_user.posada_id, clave=clave).first()
-        if config:
-            config.valor = str(valor)
-        else:
-            db.session.add(Configuracion(clave=clave, valor=str(valor), posada_id=current_user.posada_id))
+    # Guardar configuraciones
+    if 'configuracion' in data:
+        for clave, valor in data['configuracion'].items():
+            config = Configuracion.query.filter_by(posada_id=current_user.posada_id, clave=clave).first()
+            if config:
+                config.valor = str(valor)
+            else:
+                db.session.add(Configuracion(clave=clave, valor=str(valor), posada_id=current_user.posada_id))
+    
+    # Guardar datos de la posada (personalización)
+    if 'posada' in data:
+        posada = db.session.get(Posada, current_user.posada_id)
+        if posada:
+            for campo in ['nombre', 'direccion', 'telefono', 'email', 'color_primario', 'color_secundario']:
+                if campo in data['posada']:
+                    setattr(posada, campo, data['posada'][campo])
+    
     db.session.commit()
+    registrar_log(current_user.id, 'guardar_configuracion', 'Actualizó configuración del sistema')
     return jsonify({'message': 'Guardado'})
 
 # ============================================================
@@ -655,14 +874,12 @@ def calendario_agencia():
         fecha = datetime(año, mes, dia).date()
         fecha_str = fecha.strftime('%Y-%m-%d')
         
-        # Encontrar qué habitaciones están ocupadas en esta fecha
         habs_ocupadas = []
         for r in reservas:
             if r.fecha_entrada <= fecha <= r.fecha_salida:
                 if r.habitacion_id not in habs_ocupadas:
                     habs_ocupadas.append(r.habitacion_id)
         
-        # Encontrar disponibles
         habs_disponibles = [h for h in todas_habitaciones if h.id not in habs_ocupadas]
         
         ocupacion_por_dia[fecha_str] = {
@@ -704,10 +921,10 @@ def exportar_reservas():
     
     output = StringIO()
     writer = csv.writer(output)
-    writer.writerow(['ID', 'Cliente', 'Teléfono', 'Habitación', 'Check-in', 'Check-out', 'Total USD', 'Estado', 'Pago'])
+    writer.writerow(['Localizador', 'Cliente', 'Teléfono', 'Habitación', 'Check-in', 'Check-out', 'Total USD', 'Estado', 'Pago'])
     for r in reservas:
         hab = db.session.get(Habitacion, r.habitacion_id)
-        writer.writerow([r.id, r.cliente_nombre, r.cliente_telefono, hab.nombre if hab else 'N/A',
+        writer.writerow([r.localizador, r.cliente_nombre, r.cliente_telefono, hab.nombre if hab else 'N/A',
                         str(r.fecha_entrada), str(r.fecha_salida), r.total, r.estado, r.metodo_pago or '-'])
     output.seek(0)
     return Response(output.getvalue(), mimetype='text/csv',
@@ -730,11 +947,11 @@ def exportar_ingresos():
     
     output = StringIO()
     writer = csv.writer(output)
-    writer.writerow(['ID', 'Cliente', 'Teléfono', 'Habitación', 'Check-in', 'Check-out', 'Total USD', 'Pago'])
+    writer.writerow(['Localizador', 'Cliente', 'Teléfono', 'Habitación', 'Check-in', 'Check-out', 'Total USD', 'Pago'])
     total_general = 0
     for r in reservas:
         hab = db.session.get(Habitacion, r.habitacion_id)
-        writer.writerow([r.id, r.cliente_nombre, r.cliente_telefono, hab.nombre if hab else 'N/A',
+        writer.writerow([r.localizador, r.cliente_nombre, r.cliente_telefono, hab.nombre if hab else 'N/A',
                         str(r.fecha_entrada), str(r.fecha_salida), r.total, r.metodo_pago or '-'])
         total_general += r.total
     writer.writerow([])
