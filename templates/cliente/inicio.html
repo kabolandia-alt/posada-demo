@@ -8,35 +8,49 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/material_blue.css">
     <style>
-        :root { --primario: #2C5F8A; --verde: #51CF66; --rojo: #FF6B6B; --dorado: #FFD700; }
+        :root { --primario: #2C5F8A; --verde: #51CF66; }
         body { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; font-family: 'Segoe UI', sans-serif; }
         .header { text-align: center; color: white; padding: 30px 0; }
         .header h1 { font-size: 3em; font-weight: 800; text-shadow: 2px 2px 4px rgba(0,0,0,0.3); }
         .search-card { background: white; border-radius: 20px; box-shadow: 0 15px 40px rgba(0,0,0,0.2); padding: 30px; margin-bottom: 30px; }
         .habitacion-card { background: white; border-radius: 15px; overflow: hidden; box-shadow: 0 5px 15px rgba(0,0,0,0.1); transition: transform 0.3s; cursor: pointer; margin-bottom: 20px; }
-        .habitacion-card:hover { transform: translateY(-5px); box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
+        .habitacion-card:hover { transform: translateY(-5px); }
         .habitacion-card img { width: 100%; height: 200px; object-fit: cover; }
         .precio-badge { background: var(--verde); color: white; padding: 10px 20px; border-radius: 25px; font-weight: bold; font-size: 1.2em; }
-        .btn-reservar { background: var(--primario); color: white; border: none; padding: 12px 30px; border-radius: 10px; font-weight: bold; font-size: 1.1em; }
-        .btn-reservar:hover { background: #1a4a6e; }
+        .btn-reservar { background: var(--primario); color: white; border: none; padding: 12px 30px; border-radius: 10px; font-weight: bold; }
         .servicio-icon { display: inline-block; background: #f0f0f0; padding: 5px 12px; border-radius: 20px; margin: 3px; font-size: 0.85em; }
         .modal-pago { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 1000; justify-content: center; align-items: center; }
         .modal-pago.active { display: flex; }
         .modal-content { background: white; border-radius: 20px; padding: 30px; max-width: 600px; width: 95%; max-height: 85vh; overflow-y: auto; }
         .huesped-card { background: #f8f9fa; border-radius: 10px; padding: 15px; margin-bottom: 10px; border-left: 4px solid var(--primario); }
-        .datos-pago { background: #fff3cd; border-radius: 10px; padding: 15px; margin: 15px 0; border: 1px solid #ffc107; }
-        @media (max-width: 768px) {
-            .header h1 { font-size: 2em; }
-            .modal-content { padding: 15px; }
+        .datos-pago { background: #fff3cd; border-radius: 10px; padding: 15px; margin: 15px 0; }
+        .localizador-destacado { 
+            background: linear-gradient(135deg, #2C5F8A, #1a3a5c); 
+            color: white; 
+            padding: 15px; 
+            border-radius: 15px; 
+            text-align: center; 
+            margin: 15px 0;
+            font-size: 1.5em;
+            font-family: monospace;
+            letter-spacing: 3px;
+            font-weight: bold;
         }
+        .localizador-info {
+            background: #e8f5e9;
+            border-radius: 10px;
+            padding: 10px;
+            text-align: center;
+            color: #2e7d32;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+        @media (max-width: 768px) { .header h1 { font-size: 2em; } .modal-content { padding: 15px; } }
     </style>
 </head>
 <body>
     <div class="container py-4">
-        <div class="header">
-            <h1>🌴 Demo-Posadas</h1>
-            <p class="lead">Encuentra tu escapada perfecta al mejor precio</p>
-        </div>
+        <div class="header"><h1>🌴 Demo-Posadas</h1><p class="lead">Encuentra tu escapada perfecta</p></div>
         <div class="row justify-content-center">
             <div class="col-lg-8">
                 <div class="search-card">
@@ -47,10 +61,10 @@
                         <div class="col-md-2 d-flex align-items-end"><button class="btn btn-reservar w-100" onclick="buscarDisponibilidad()">🔍 Buscar</button></div>
                     </div>
                     <div class="row">
-                        <div class="col-md-6"><label class="form-label fw-bold">👤 Adultos</label><select id="adultos" class="form-select form-select-lg"><option value="1">1 adulto</option><option value="2" selected>2 adultos</option><option value="3">3 adultos</option><option value="4">4 adultos</option><option value="5">5 adultos</option></select></div>
-                        <div class="col-md-6"><label class="form-label fw-bold">👶 Niños</label><select id="ninos" class="form-select form-select-lg"><option value="0" selected>Sin niños</option><option value="1">1 niño</option><option value="2">2 niños</option><option value="3">3 niños</option></select></div>
+                        <div class="col-md-6"><label class="form-label fw-bold">👤 Adultos</label><select id="adultos" class="form-select form-select-lg"><option value="1">1</option><option value="2" selected>2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option></select></div>
+                        <div class="col-md-6"><label class="form-label fw-bold">👶 Niños</label><select id="ninos" class="form-select form-select-lg"><option value="0" selected>0</option><option value="1">1</option><option value="2">2</option><option value="3">3</option></select></div>
                     </div>
-                    <div id="cargando" class="text-center mt-4" style="display: none;"><div class="spinner-border text-primary"></div><p class="mt-2">🔍 Buscando...</p></div>
+                    <div id="cargando" class="text-center mt-4" style="display:none;"><div class="spinner-border text-primary"></div><p>🔍 Buscando...</p></div>
                 </div>
             </div>
         </div>
@@ -62,21 +76,30 @@
             <div class="d-flex justify-content-between align-items-center mb-3"><h3>📝 Completar Reserva</h3><button class="btn-close" onclick="cerrarModal()"></button></div>
             <div id="resumenHabitacion" class="bg-light p-3 rounded mb-3"></div>
             
+            <!-- Mensaje de localizador (se llena después de crear reserva) -->
+            <div id="localizadorExito" style="display:none;">
+                <div class="localizador-destacado">
+                    🔑 <span id="localizadorCodigo"></span>
+                </div>
+                <div class="localizador-info">
+                    📌 GUARDA ESTE CÓDIGO - Lo necesitarás para gestionar tu reserva
+                </div>
+                <hr>
+            </div>
+            
             <form id="formReserva" enctype="multipart/form-data">
                 <h5 class="text-primary">👤 Datos del Titular</h5>
                 <div class="row g-2 mb-3">
-                    <div class="col-12"><label class="form-label">Nombre Completo *</label><input type="text" id="nombreCliente" name="cliente_nombre" class="form-control" required></div>
-                    <div class="col-md-6"><label class="form-label">Tipo Documento *</label><select id="tipoDocumento" class="form-select" required><option value="cedula">Cédula</option><option value="pasaporte">Pasaporte</option></select></div>
-                    <div class="col-md-6"><label class="form-label">Número *</label><input type="text" id="cedulaCliente" name="cliente_cedula" class="form-control" required></div>
-                    <div class="col-md-6"><label class="form-label">Teléfono *</label><input type="tel" id="telefonoCliente" name="cliente_telefono" class="form-control" required></div>
-                    <div class="col-md-6"><label class="form-label">Email</label><input type="email" id="emailCliente" name="cliente_email" class="form-control"></div>
+                    <div class="col-12"><input type="text" id="nombreCliente" name="cliente_nombre" class="form-control" placeholder="Nombre Completo *" required></div>
+                    <div class="col-md-6"><select id="tipoDocumento" class="form-select" required><option value="cedula">Cédula</option><option value="pasaporte">Pasaporte</option></select></div>
+                    <div class="col-md-6"><input type="text" id="cedulaCliente" class="form-control" placeholder="N° Documento *" required></div>
+                    <div class="col-md-6"><input type="tel" id="telefonoCliente" name="cliente_telefono" class="form-control" placeholder="Teléfono *" required></div>
+                    <div class="col-md-6"><input type="email" id="emailCliente" name="cliente_email" class="form-control" placeholder="Email"></div>
                 </div>
-                
                 <h5 class="text-primary">👥 Datos de Huéspedes</h5>
                 <div id="huespedesContainer"></div>
-                
                 <h5 class="text-primary mt-3">💳 Método de Pago</h5>
-                <select id="metodoPago" name="metodo_pago" class="form-select mb-3" required onchange="mostrarDatosPago()">
+                <select id="metodoPago" class="form-select mb-3" required onchange="mostrarDatosPago()">
                     <option value="">Seleccionar método</option>
                     <option value="solo_reserva">📝 Solo Reservar (Sin pago - 40 min)</option>
                     <option value="zelle">Zelle</option>
@@ -84,16 +107,12 @@
                     <option value="transferencia">Transferencia Internacional</option>
                     <option value="efectivo">Efectivo (Pago en oficina)</option>
                 </select>
-                
                 <div id="datosPago" class="datos-pago" style="display:none;"></div>
-                
                 <div class="mb-3" id="divComprobante">
                     <label class="form-label">📎 Adjuntar Comprobante <span id="comprobanteRequerido">*</span></label>
                     <input type="file" name="comprobante" id="comprobanteFile" class="form-control" accept="image/*,.pdf" required>
-                    <small class="text-muted">Formatos: JPG, PNG, PDF</small>
                 </div>
-                
-                <div class="text-center mt-3"><h4>Total a pagar: <span id="totalReserva" class="text-success fw-bold"></span></h4></div>
+                <div class="text-center mt-3"><h4>Total: <span id="totalReserva" class="text-success fw-bold"></span></h4></div>
                 <button type="submit" class="btn btn-success btn-lg w-100 mt-3">💳 Confirmar Reserva</button>
             </form>
         </div>
@@ -103,44 +122,27 @@
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/es.js"></script>
     <script>
-        const fpEntrada = flatpickr("#fechaEntrada", { locale: "es", minDate: "today", dateFormat: "Y-m-d", onChange: function(selectedDates, dateStr) { fpSalida.set('minDate', dateStr); } });
+        const fpEntrada = flatpickr("#fechaEntrada", { locale: "es", minDate: "today", dateFormat: "Y-m-d", onChange: function(_, d) { fpSalida.set('minDate', d); } });
         const fpSalida = flatpickr("#fechaSalida", { locale: "es", minDate: "today", dateFormat: "Y-m-d" });
         let habitacionSeleccionada = null, totalSeleccionado = 0;
         
         const datosPagoInfo = {
-            solo_reserva: `<strong>📝 Reserva Sin Pago:</strong><br>Su reserva será registrada pero <strong>NO estará confirmada</strong>.<br>⏰ Tiene <strong>40 minutos</strong> para realizar el pago.<br>Pasado ese tiempo, la reserva se cancelará automáticamente.<br><small class="text-danger">Debe completar el pago para confirmar.</small>`,
-            zelle: `<strong>💵 Datos para Zelle:</strong><br>Titular: Demo Posadas C.A.<br>Email: pagos@demo-posadas.com<br>Teléfono: +1 (555) 123-4567<br><small class="text-danger">Enviar al número o email indicado</small>`,
-            binance: `<strong>₿ Datos para Binance:</strong><br>Titular: Demo Posadas<br>Email: pagos@demo-posadas.com<br>ID Binance: 123456789<br><small class="text-danger">Usar red BSC (BEP20) o TRC20</small>`,
-            transferencia: `<strong>🏦 Datos para Transferencia:</strong><br>Banco: Banco Internacional<br>Titular: Demo Posadas C.A.<br>Cuenta: 0123-4567-89-10111213<br>SWIFT: BINTVEXXX<br><small class="text-danger">Incluir número de reserva en el concepto</small>`,
-            efectivo: `<strong>💵 Pago en Efectivo:</strong><br>Deberá acercarse a nuestra oficina para realizar el pago.<br>Dirección: Calle Principal #123<br>Horario: Lunes a Viernes 8am-5pm<br><small class="text-danger">Se le enviarán instrucciones por WhatsApp/Email</small>`
+            solo_reserva: `<strong>📝 Reserva Sin Pago:</strong><br>⏰ Tiene <strong>40 minutos</strong> para pagar.<br>Pasado ese tiempo, se cancela automáticamente.`,
+            zelle: `<strong>💵 Zelle:</strong><br>Titular: Demo Posadas C.A.<br>Email: pagos@demo-posadas.com`,
+            binance: `<strong>₿ Binance:</strong><br>ID: 123456789<br>Red BSC (BEP20) o TRC20`,
+            transferencia: `<strong>🏦 Transferencia:</strong><br>Banco: Internacional<br>Cuenta: 0123-4567-89`,
+            efectivo: `<strong>💵 Efectivo:</strong><br>Acérquese a nuestra oficina.<br>Dirección: Calle Principal #123`
         };
         
         function mostrarDatosPago() {
             const metodo = document.getElementById('metodoPago').value;
             const div = document.getElementById('datosPago');
-            const divComprobante = document.getElementById('divComprobante');
-            const comprobanteFile = document.getElementById('comprobanteFile');
-            const comprobanteReq = document.getElementById('comprobanteRequerido');
-            
-            if (metodo && datosPagoInfo[metodo]) {
-                div.innerHTML = datosPagoInfo[metodo];
-                div.style.display = 'block';
-                
-                if (metodo === 'efectivo' || metodo === 'solo_reserva') {
-                    comprobanteFile.removeAttribute('required');
-                    comprobanteReq.style.display = 'none';
-                    divComprobante.style.opacity = '0.5';
-                } else {
-                    comprobanteFile.setAttribute('required', 'required');
-                    comprobanteReq.style.display = 'inline';
-                    divComprobante.style.opacity = '1';
-                }
-            } else {
-                div.style.display = 'none';
-                comprobanteFile.setAttribute('required', 'required');
-                comprobanteReq.style.display = 'inline';
-                divComprobante.style.opacity = '1';
-            }
+            const divComp = document.getElementById('divComprobante');
+            const file = document.getElementById('comprobanteFile');
+            if (metodo && datosPagoInfo[metodo]) { div.innerHTML = datosPagoInfo[metodo]; div.style.display = 'block'; }
+            else { div.style.display = 'none'; }
+            if (metodo === 'efectivo' || metodo === 'solo_reserva') { file.removeAttribute('required'); divComp.style.opacity = '0.5'; }
+            else { file.setAttribute('required', 'required'); divComp.style.opacity = '1'; }
         }
         
         function buscarDisponibilidad() {
@@ -149,112 +151,101 @@
             if (!entrada || !salida) { alert('⚠️ Selecciona fechas'); return; }
             document.getElementById('cargando').style.display = 'block';
             document.getElementById('resultados').innerHTML = '';
-            fetch(`/api/disponibilidad/1?entrada=${entrada}&salida=${salida}`)
-                .then(r => r.json()).then(data => {
-                    document.getElementById('cargando').style.display = 'none';
-                    let html = '';
-                    if (data.length === 0) html = '<div class="col-12 text-center text-white mt-4"><h3>😔 No hay habitaciones disponibles</h3></div>';
-                    else {
-                        html += '<h2 class="text-white text-center mb-4">🏨 Habitaciones Disponibles</h2>';
-                        data.forEach(hab => {
-                            const imagen = hab.imagen ? `/static/uploads/${hab.imagen}` : 'https://via.placeholder.com/400x250?text=Sin+Imagen';
-                            const servicios = hab.servicios.map(s => `<span class="servicio-icon">${s}</span>`).join(' ');
-                            html += `<div class="col-md-6 col-lg-4"><div class="habitacion-card" onclick="abrirReserva(${hab.id}, '${hab.nombre}', ${hab.precio_total}, '${hab.tipo}', '${hab.camas || ''}')"><img src="${imagen}" alt="${hab.nombre}"><div class="p-3"><div class="d-flex justify-content-between align-items-start mb-2"><h5>${hab.nombre}</h5><span class="badge bg-primary">${hab.tipo}</span></div><p class="text-muted small">${hab.descripcion || ''}</p><div class="mb-2">${servicios}</div><div class="d-flex justify-content-between align-items-center"><span class="precio-badge">$${hab.precio_total}</span><small class="text-muted">$${hab.precio_por_noche}/noche</small></div><small class="text-muted">👥 ${hab.capacidad} personas · 🛏️ ${hab.camas || 'Consultar'}</small></div></div></div>`;
-                        });
-                    }
-                    document.getElementById('resultados').innerHTML = html;
-                }).catch(() => { document.getElementById('cargando').style.display = 'none'; alert('❌ Error'); });
+            fetch(`/api/disponibilidad/1?entrada=${entrada}&salida=${salida}`).then(r => r.json()).then(data => {
+                document.getElementById('cargando').style.display = 'none';
+                let html = '';
+                if (data.length === 0) html = '<div class="col-12 text-center text-white mt-4"><h3>😔 No hay habitaciones disponibles</h3></div>';
+                else {
+                    html += '<h2 class="text-white text-center mb-4">🏨 Habitaciones Disponibles</h2>';
+                    data.forEach(hab => {
+                        const img = hab.imagen ? `/static/uploads/${hab.imagen}` : 'https://via.placeholder.com/400x250?text=Sin+Imagen';
+                        const serv = hab.servicios.map(s => `<span class="servicio-icon">${s}</span>`).join(' ');
+                        html += `<div class="col-md-6 col-lg-4"><div class="habitacion-card" onclick="abrirReserva(${hab.id},'${hab.nombre}',${hab.precio_total},'${hab.tipo}','${hab.camas||''}')"><img src="${img}"><div class="p-3"><div class="d-flex justify-content-between"><h5>${hab.nombre}</h5><span class="badge bg-primary">${hab.tipo}</span></div><p class="text-muted small">${hab.descripcion||''}</p><div class="mb-2">${serv}</div><div class="d-flex justify-content-between"><span class="precio-badge">$${hab.precio_total}</span><small>$${hab.precio_por_noche}/noche</small></div><small>👥 ${hab.capacidad} pers · 🛏️ ${hab.camas||'Consultar'}</small></div></div></div>`;
+                    });
+                }
+                document.getElementById('resultados').innerHTML = html;
+            }).catch(() => { document.getElementById('cargando').style.display = 'none'; });
         }
         
         function abrirReserva(id, nombre, precio, tipo, camas) {
             habitacionSeleccionada = id; totalSeleccionado = precio;
-            document.getElementById('resumenHabitacion').innerHTML = `<strong>${nombre}</strong><br><small>Tipo: ${tipo} · Camas: ${camas}</small>`;
+            document.getElementById('resumenHabitacion').innerHTML = `<strong>${nombre}</strong><br><small>${tipo} · ${camas}</small>`;
             document.getElementById('totalReserva').textContent = `$${precio}`;
+            
+            // Ocultar localizador de reservas anteriores
+            document.getElementById('localizadorExito').style.display = 'none';
+            document.getElementById('formReserva').style.display = 'block';
             
             const adultos = parseInt(document.getElementById('adultos').value);
             const ninos = parseInt(document.getElementById('ninos').value);
-            const totalPersonas = adultos + ninos;
-            
-            let huespedesHTML = '';
-            for (let i = 1; i <= totalPersonas; i++) {
-                huespedesHTML += `
-                <div class="huesped-card">
-                    <h6>👤 Huésped ${i} ${i <= adultos ? '(Adulto)' : '(Niño)'}</h6>
-                    <div class="row g-2">
-                        <div class="col-12"><input type="text" name="huesped_nombre_${i}" class="form-control form-control-sm" placeholder="Nombre completo *" required></div>
-                        <div class="col-md-6">
-                            <select name="huesped_tipo_doc_${i}" class="form-select form-select-sm" required>
-                                <option value="cedula">Cédula</option>
-                                <option value="pasaporte">Pasaporte</option>
-                            </select>
-                        </div>
-                        <div class="col-md-6"><input type="text" name="huesped_documento_${i}" class="form-control form-control-sm" placeholder="N° Documento *" required></div>
-                        <div class="col-md-6"><input type="tel" name="huesped_telefono_${i}" class="form-control form-control-sm" placeholder="Teléfono"></div>
-                        <div class="col-md-6"><input type="email" name="huesped_email_${i}" class="form-control form-control-sm" placeholder="Email"></div>
-                    </div>
-                </div>`;
+            const total = adultos + ninos;
+            let hHTML = '';
+            for (let i = 1; i <= total; i++) {
+                hHTML += `<div class="huesped-card"><h6>👤 Huésped ${i} ${i<=adultos?'(Adulto)':'(Niño)'}</h6><div class="row g-2"><div class="col-12"><input type="text" name="huesped_nombre_${i}" class="form-control form-control-sm" placeholder="Nombre *" required></div><div class="col-md-6"><select name="huesped_tipo_doc_${i}" class="form-select form-select-sm"><option value="cedula">Cédula</option><option value="pasaporte">Pasaporte</option></select></div><div class="col-md-6"><input type="text" name="huesped_documento_${i}" class="form-control form-control-sm" placeholder="N° Doc *" required></div><div class="col-md-6"><input type="tel" name="huesped_telefono_${i}" class="form-control form-control-sm" placeholder="Teléfono"></div><div class="col-md-6"><input type="email" name="huesped_email_${i}" class="form-control form-control-sm" placeholder="Email"></div></div></div>`;
             }
-            document.getElementById('huespedesContainer').innerHTML = huespedesHTML;
+            document.getElementById('huespedesContainer').innerHTML = hHTML;
             document.getElementById('metodoPago').value = '';
             document.getElementById('datosPago').style.display = 'none';
             document.getElementById('comprobanteFile').setAttribute('required', 'required');
-            document.getElementById('comprobanteRequerido').style.display = 'inline';
             document.getElementById('divComprobante').style.opacity = '1';
             document.getElementById('modalReserva').classList.add('active');
         }
         
-        function cerrarModal() { document.getElementById('modalReserva').classList.remove('active'); }
+        function cerrarModal() { 
+            document.getElementById('modalReserva').classList.remove('active'); 
+            document.getElementById('localizadorExito').style.display = 'none';
+            document.getElementById('formReserva').style.display = 'block';
+        }
         
         document.getElementById('formReserva').addEventListener('submit', function(e) {
             e.preventDefault();
-            
             const formData = new FormData(this);
             const adultos = parseInt(document.getElementById('adultos').value);
             const ninos = parseInt(document.getElementById('ninos').value);
-            const totalPersonas = adultos + ninos;
-            const metodoPago = document.getElementById('metodoPago').value;
-            
+            const total = adultos + ninos;
+            const metodo = document.getElementById('metodoPago').value;
             const huespedes = [];
-            for (let i = 1; i <= totalPersonas; i++) {
-                huespedes.push({
-                    nombre: formData.get(`huesped_nombre_${i}`) || '',
-                    tipo_documento: formData.get(`huesped_tipo_doc_${i}`) || 'cedula',
-                    documento: formData.get(`huesped_documento_${i}`) || '',
-                    telefono: formData.get(`huesped_telefono_${i}`) || '',
-                    email: formData.get(`huesped_email_${i}`) || '',
-                    tipo: i <= adultos ? 'adulto' : 'niño'
-                });
+            for (let i = 1; i <= total; i++) { 
+                huespedes.push({ 
+                    nombre: formData.get(`huesped_nombre_${i}`)||'', 
+                    tipo_documento: formData.get(`huesped_tipo_doc_${i}`)||'cedula', 
+                    documento: formData.get(`huesped_documento_${i}`)||'', 
+                    telefono: formData.get(`huesped_telefono_${i}`)||'', 
+                    email: formData.get(`huesped_email_${i}`)||'', 
+                    tipo: i<=adultos?'adulto':'niño' 
+                }); 
             }
-            
             formData.append('datos_huespedes', JSON.stringify(huespedes));
             formData.append('habitacion_id', habitacionSeleccionada);
             formData.append('fecha_entrada', document.getElementById('fechaEntrada').value);
             formData.append('fecha_salida', document.getElementById('fechaSalida').value);
-            formData.append('adultos', adultos);
-            formData.append('ninos', ninos);
-            formData.append('metodo_pago', metodoPago);
+            formData.append('adultos', adultos); formData.append('ninos', ninos); formData.append('metodo_pago', metodo);
             formData.append('cliente_cedula', document.getElementById('tipoDocumento').value + ':' + document.getElementById('cedulaCliente').value);
+            if (metodo === 'efectivo' || metodo === 'solo_reserva') formData.delete('comprobante');
             
-            if (metodoPago === 'efectivo' || metodoPago === 'solo_reserva') {
-                formData.delete('comprobante');
-            }
-            
-            fetch('/api/reservas', { method: 'POST', body: formData })
-                .then(r => r.json()).then(data => {
-                    if (data.reserva_id) { 
-                        if (metodoPago === 'solo_reserva') {
-                            alert('✅ ¡Reserva creada con éxito!\n\n⏰ IMPORTANTE: Esta reserva expira en 40 minutos si no se realiza el pago.\nTotal: $' + data.total);
-                        } else if (metodoPago === 'efectivo') {
-                            alert('✅ ¡Reserva creada con éxito!\nTotal: $' + data.total + '\n\nPor favor acérquese a nuestra oficina para realizar el pago.');
-                        } else {
-                            alert('✅ ¡Reserva creada con éxito!\nTotal: $' + data.total + '\nTe contactaremos pronto.');
-                        }
-                        cerrarModal(); 
-                        buscarDisponibilidad();
-                    } else { 
-                        alert('❌ Error: ' + (data.error || 'Error desconocido')); 
+            fetch('/api/reservas', { method: 'POST', body: formData }).then(r => r.json()).then(data => {
+                if (data.reserva_id) {
+                    // Mostrar localizador destacado
+                    document.getElementById('formReserva').style.display = 'none';
+                    document.getElementById('localizadorCodigo').textContent = data.localizador;
+                    document.getElementById('localizadorExito').style.display = 'block';
+                    
+                    // También mostrar alerta
+                    let msg = '✅ ¡Reserva creada exitosamente!\n\n';
+                    msg += '🔑 TU LOCALIZADOR: ' + data.localizador + '\n\n';
+                    msg += '📌 GUARDA ESTE CÓDIGO - Lo necesitarás para todo\n\n';
+                    msg += 'Total: $' + data.total;
+                    if (metodo === 'solo_reserva') {
+                        msg += '\n\n⏰ Tienes 40 minutos para confirmar el pago';
                     }
-                }).catch(() => alert('❌ Error de conexión'));
+                    alert(msg);
+                    
+                    // Cerrar modal después de 5 segundos
+                    setTimeout(() => { cerrarModal(); buscarDisponibilidad(); }, 5000);
+                } else { 
+                    alert('❌ ' + (data.error || 'Error al crear la reserva')); 
+                }
+            }).catch(() => alert('❌ Error de conexión'));
         });
         
         document.getElementById('modalReserva').addEventListener('click', function(e) { if (e.target === this) cerrarModal(); });
