@@ -121,7 +121,7 @@ class LogActividad(db.Model):
 # ============================================================
 
 def generar_localizador(posada_id):
-    """Genera un localizador único de 6 caracteres (3 letras + 3 números) reutilizable cada 3 meses"""
+    """Genera un localizador único de 6 caracteres (3 letras + 3 números)"""
     while True:
         letras = ''.join(random.choices(string.ascii_uppercase, k=3))
         numeros = ''.join(random.choices(string.digits, k=3))
@@ -137,7 +137,6 @@ def generar_localizador(posada_id):
             return localizador
 
 def registrar_log(usuario_id, accion, descripcion, posada_id=None):
-    """Registra una acción en los logs del sistema"""
     try:
         log = LogActividad(
             usuario_id=usuario_id,
@@ -260,9 +259,7 @@ def crear_habitacion():
         )
         db.session.add(hab)
         db.session.commit()
-        
         registrar_log(current_user.id, 'crear_habitacion', f'Creó habitación: {nombre}')
-        
         return jsonify({'message': 'Habitacion creada', 'id': hab.id})
     except Exception as e:
         db.session.rollback()
@@ -274,7 +271,6 @@ def actualizar_habitacion(id):
     hab = db.session.get(Habitacion, id)
     if not hab or hab.posada_id != current_user.posada_id:
         return jsonify({'error': 'No encontrada'}), 404
-    
     try:
         if request.is_json:
             data = request.get_json()
@@ -296,10 +292,8 @@ def actualizar_habitacion(id):
                     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
                     file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
                     hab.imagen = filename
-        
         db.session.commit()
         registrar_log(current_user.id, 'editar_habitacion', f'Editó habitación: {hab.nombre}')
-        
         return jsonify({'message': 'Actualizada correctamente'})
     except Exception as e:
         db.session.rollback()
@@ -325,17 +319,13 @@ def eliminar_habitacion(id):
 def verificar_disponibilidad(posada_id):
     try:
         cancelar_reservas_expiradas()
-        
         entrada_str = request.args.get('entrada')
         salida_str = request.args.get('salida')
         if not entrada_str or not salida_str:
             return jsonify([])
-        
         entrada = datetime.strptime(entrada_str, '%Y-%m-%d').date()
         salida = datetime.strptime(salida_str, '%Y-%m-%d').date()
-        
         todas_habitaciones = Habitacion.query.filter_by(posada_id=posada_id, estado='disponible').all()
-        
         reservas_activas = Reserva.query.filter(
             Reserva.posada_id == posada_id,
             Reserva.habitacion_id.isnot(None),
@@ -343,10 +333,8 @@ def verificar_disponibilidad(posada_id):
             Reserva.fecha_entrada <= salida,
             Reserva.fecha_salida >= entrada
         ).all()
-        
         ocupadas_ids = list(set([r.habitacion_id for r in reservas_activas]))
         disponibles = [h for h in todas_habitaciones if h.id not in ocupadas_ids]
-        
         dias = max((salida - entrada).days, 1)
         resultado = []
         for h in disponibles:
@@ -376,10 +364,8 @@ def crear_reserva():
         salida = datetime.strptime(datos.get('fecha_salida'), '%Y-%m-%d').date()
         dias = max((salida - entrada).days, 1)
         hab = db.session.get(Habitacion, int(datos.get('habitacion_id', 0)))
-        
         if not hab:
             return jsonify({'error': 'Habitacion no encontrada'}), 404
-        
         conflicto = Reserva.query.filter(
             Reserva.habitacion_id == hab.id,
             Reserva.estado != 'cancelada',
@@ -388,14 +374,12 @@ def crear_reserva():
         ).first()
         if conflicto:
             return jsonify({'error': 'Ya no está disponible'}), 409
-        
         total = hab.precio_base * dias
         fecha = entrada
         while fecha < salida:
             ajuste = calcular_tarifa_aplicable(hab.posada_id, fecha)
             total += ajuste
             fecha += timedelta(days=1)
-        
         metodo_pago = datos.get('metodo_pago', '')
         comprobante = None
         if metodo_pago not in ['efectivo', 'solo_reserva'] and 'comprobante' in request.files:
@@ -406,12 +390,9 @@ def crear_reserva():
                 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
                 file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
                 comprobante = filename
-        
         solo_reserva = metodo_pago == 'solo_reserva'
         expiracion = datetime.utcnow() + timedelta(minutes=40) if solo_reserva else None
-        
         localizador = generar_localizador(hab.posada_id)
-        
         reserva = Reserva(
             localizador=localizador,
             cliente_nombre=datos.get('cliente_nombre', ''),
@@ -432,9 +413,7 @@ def crear_reserva():
         )
         db.session.add(reserva)
         db.session.commit()
-        
         registrar_log(1, 'nueva_reserva', f'Nueva reserva: {localizador} - {hab.nombre}')
-        
         return jsonify({
             'message': 'Reserva creada exitosamente',
             'reserva_id': reserva.id,
@@ -450,31 +429,27 @@ def crear_reserva():
 def editar_reserva(reserva_id):
     if current_user.rol != 'admin':
         return jsonify({'error': 'No autorizado. Solo administradores.'}), 403
-    
     reserva = db.session.get(Reserva, reserva_id)
     if not reserva or reserva.posada_id != current_user.posada_id:
         return jsonify({'error': 'Reserva no encontrada'}), 404
-    
     try:
         data = request.json
-        if 'cliente_nombre' in data:
-            reserva.cliente_nombre = data['cliente_nombre']
-        if 'cliente_telefono' in data:
-            reserva.cliente_telefono = data['cliente_telefono']
-        if 'cliente_email' in data:
-            reserva.cliente_email = data['cliente_email']
+        campos_permitidos = ['cliente_nombre', 'cliente_telefono', 'cliente_email', 
+                            'estado', 'total', 'adultos', 'ninos', 'metodo_pago', 'habitacion_id']
+        for campo in campos_permitidos:
+            if campo in data:
+                if campo in ['total']:
+                    setattr(reserva, campo, float(data[campo]))
+                elif campo in ['adultos', 'ninos', 'habitacion_id']:
+                    setattr(reserva, campo, int(data[campo]))
+                else:
+                    setattr(reserva, campo, data[campo])
         if 'fecha_entrada' in data:
             reserva.fecha_entrada = datetime.strptime(data['fecha_entrada'], '%Y-%m-%d').date()
         if 'fecha_salida' in data:
             reserva.fecha_salida = datetime.strptime(data['fecha_salida'], '%Y-%m-%d').date()
-        if 'estado' in data:
-            reserva.estado = data['estado']
-        if 'total' in data:
-            reserva.total = float(data['total'])
-        
         db.session.commit()
         registrar_log(current_user.id, 'editar_reserva', f'Editó reserva {reserva.localizador}')
-        
         return jsonify({'message': 'Reserva actualizada correctamente'})
     except Exception as e:
         db.session.rollback()
@@ -542,16 +517,13 @@ def calendario_completo():
     año = int(request.args.get('año', datetime.now().year))
     inicio = datetime(año, mes, 1).date()
     fin = (datetime(año + 1, 1, 1) if mes == 12 else datetime(año, mes + 1, 1)).date() - timedelta(days=1)
-    
     total_habitaciones = Habitacion.query.filter_by(posada_id=current_user.posada_id).count()
-    
     reservas = Reserva.query.filter(
         Reserva.posada_id == current_user.posada_id,
         Reserva.estado != 'cancelada',
         Reserva.fecha_entrada <= fin,
         Reserva.fecha_salida >= inicio
     ).all()
-    
     ocupacion_por_dia = {}
     for dia in range(1, fin.day + 1):
         fecha = datetime(año, mes, dia).date()
@@ -561,7 +533,6 @@ def calendario_completo():
             'disponibles': total_habitaciones - ocupadas,
             'total': total_habitaciones
         }
-    
     return jsonify({
         'total_dias': fin.day,
         'primer_dia_semana': (inicio.weekday() + 1) % 7,
@@ -579,19 +550,15 @@ def reservas_pendientes():
     reservas = Reserva.query.filter_by(posada_id=current_user.posada_id).filter(
         Reserva.estado.in_(['pago_reportado', 'pendiente'])
     ).order_by(Reserva.fecha_reserva.desc()).all()
-    
     resultado = []
     for r in reservas:
         hab = db.session.get(Habitacion, r.habitacion_id)
-        
         expiracion = None
         if r.fecha_expiracion:
             expiracion = (r.fecha_expiracion - timedelta(hours=4)).strftime('%d/%m/%Y %H:%M')
-        
         fecha_aprob = None
         if r.fecha_aprobacion:
             fecha_aprob = (r.fecha_aprobacion - timedelta(hours=4)).strftime('%d/%m/%Y %H:%M')
-        
         resultado.append({
             'id': r.id,
             'localizador': r.localizador,
@@ -623,15 +590,12 @@ def todas_reservas():
     resultado = []
     for r in reservas:
         hab = db.session.get(Habitacion, r.habitacion_id)
-        
         expiracion = None
         if r.fecha_expiracion:
             expiracion = (r.fecha_expiracion - timedelta(hours=4)).strftime('%d/%m/%Y %H:%M')
-        
         fecha_aprob = None
         if r.fecha_aprobacion:
             fecha_aprob = (r.fecha_aprobacion - timedelta(hours=4)).strftime('%d/%m/%Y %H:%M')
-        
         resultado.append({
             'id': r.id,
             'localizador': r.localizador,
@@ -639,9 +603,12 @@ def todas_reservas():
             'cliente_telefono': r.cliente_telefono or 'No registrado',
             'cliente_email': r.cliente_email or 'No registrado',
             'habitacion_nombre': hab.nombre if hab else 'N/A',
+            'habitacion_id': r.habitacion_id,
             'fecha_entrada': str(r.fecha_entrada),
             'fecha_salida': str(r.fecha_salida),
             'total': r.total,
+            'adultos': r.adultos,
+            'ninos': r.ninos,
             'estado': r.estado,
             'metodo_pago': r.metodo_pago or '-',
             'solo_reserva': r.solo_reserva,
@@ -660,7 +627,6 @@ def ingresos_mes():
     año = int(request.args.get('año', datetime.now().year))
     inicio_mes = datetime(año, mes, 1).date()
     fin_mes = (datetime(año + 1, 1, 1) if mes == 12 else datetime(año, mes + 1, 1)).date() - timedelta(days=1)
-    
     reservas = Reserva.query.filter(
         Reserva.posada_id == current_user.posada_id,
         Reserva.estado == 'confirmada',
@@ -672,18 +638,15 @@ def ingresos_mes():
 @app.route('/api/indicadores-dashboard')
 @login_required
 def indicadores_dashboard():
-    """Indicadores avanzados para el dashboard"""
     try:
         posada_id = current_user.posada_id
         ahora = datetime.utcnow()
         hace_90_dias = ahora - timedelta(days=90)
-        
         reservas_90d = Reserva.query.filter(
             Reserva.posada_id == posada_id,
             Reserva.estado == 'confirmada',
             Reserva.fecha_reserva >= hace_90_dias
         ).all()
-        
         ventas_por_hab = {}
         for r in reservas_90d:
             hab = db.session.get(Habitacion, r.habitacion_id)
@@ -692,10 +655,8 @@ def indicadores_dashboard():
                 ventas_por_hab[nombre] = {'cantidad': 0, 'ingresos': 0}
             ventas_por_hab[nombre]['cantidad'] += 1
             ventas_por_hab[nombre]['ingresos'] += r.total
-        
         mas_vendida = max(ventas_por_hab.items(), key=lambda x: x[1]['cantidad']) if ventas_por_hab else None
         menos_vendida = min(ventas_por_hab.items(), key=lambda x: x[1]['cantidad']) if ventas_por_hab else None
-        
         ocupacion_por_mes = {}
         nombres_meses = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
                         'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
@@ -704,9 +665,7 @@ def indicadores_dashboard():
             if mes not in ocupacion_por_mes:
                 ocupacion_por_mes[mes] = 0
             ocupacion_por_mes[mes] += 1
-        
         mejor_mes = max(ocupacion_por_mes.items(), key=lambda x: x[1]) if ocupacion_por_mes else None
-        
         hoy = ahora.date()
         ocupadas_hoy = Reserva.query.filter(
             Reserva.posada_id == posada_id,
@@ -714,30 +673,58 @@ def indicadores_dashboard():
             Reserva.fecha_entrada <= hoy,
             Reserva.fecha_salida >= hoy
         ).count()
-        
         total_habitaciones = Habitacion.query.filter_by(posada_id=posada_id).count()
-        
         return jsonify({
-            'mas_vendida': {
-                'nombre': mas_vendida[0],
-                'reservas': mas_vendida[1]['cantidad'],
-                'ingresos': round(mas_vendida[1]['ingresos'], 2)
-            } if mas_vendida else None,
-            'menos_vendida': {
-                'nombre': menos_vendida[0],
-                'reservas': menos_vendida[1]['cantidad'],
-                'ingresos': round(menos_vendida[1]['ingresos'], 2)
-            } if menos_vendida else None,
-            'mejor_temporada': {
-                'mes': nombres_meses[mejor_mes[0]-1],
-                'reservas': mejor_mes[1]
-            } if mejor_mes else None,
-            'ocupacion_hoy': {
-                'ocupadas': ocupadas_hoy,
-                'total': total_habitaciones,
-                'porcentaje': round((ocupadas_hoy / total_habitaciones * 100) if total_habitaciones > 0 else 0, 1)
-            },
+            'mas_vendida': {'nombre': mas_vendida[0], 'reservas': mas_vendida[1]['cantidad'], 'ingresos': round(mas_vendida[1]['ingresos'], 2)} if mas_vendida else None,
+            'menos_vendida': {'nombre': menos_vendida[0], 'reservas': menos_vendida[1]['cantidad'], 'ingresos': round(menos_vendida[1]['ingresos'], 2)} if menos_vendida else None,
+            'mejor_temporada': {'mes': nombres_meses[mejor_mes[0]-1], 'reservas': mejor_mes[1]} if mejor_mes else None,
+            'ocupacion_hoy': {'ocupadas': ocupadas_hoy, 'total': total_habitaciones, 'porcentaje': round((ocupadas_hoy / total_habitaciones * 100) if total_habitaciones > 0 else 0, 1)},
             'total_reservas_90d': len(reservas_90d)
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/graficos-dashboard')
+@login_required
+def graficos_dashboard():
+    try:
+        posada_id = current_user.posada_id
+        ahora = datetime.utcnow()
+        hace_90_dias = ahora - timedelta(days=90)
+        reservas = Reserva.query.filter(
+            Reserva.posada_id == posada_id,
+            Reserva.estado == 'confirmada',
+            Reserva.fecha_reserva >= hace_90_dias
+        ).all()
+        habs = Habitacion.query.filter_by(posada_id=posada_id).all()
+        habs_nombres = [h.nombre for h in habs]
+        habs_reservas = []
+        for h in habs:
+            count = sum(1 for r in reservas if r.habitacion_id == h.id)
+            habs_reservas.append(count)
+        meses_nombres = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
+        meses_reservas = [0] * 12
+        for r in reservas:
+            mes = r.fecha_reserva.month - 1
+            meses_reservas[mes] += 1
+        pagos_data = {}
+        for r in reservas:
+            metodo = r.metodo_pago or 'Otro'
+            if metodo not in pagos_data:
+                pagos_data[metodo] = 0
+            pagos_data[metodo] += r.total
+        dias_semana = [0] * 7
+        for r in reservas:
+            dia = r.fecha_entrada.weekday()
+            dias_semana[dia] += 1
+        return jsonify({
+            'habitaciones_nombres': habs_nombres,
+            'habitaciones_reservas': habs_reservas,
+            'meses_nombres': meses_nombres,
+            'meses_reservas': meses_reservas,
+            'pagos_nombres': list(pagos_data.keys()),
+            'pagos_ingresos': [round(v, 2) for v in pagos_data.values()],
+            'dias_semana': dias_semana
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -747,7 +734,6 @@ def indicadores_dashboard():
 def ver_logs():
     if current_user.rol != 'admin':
         return jsonify({'error': 'No autorizado'}), 403
-    
     logs = LogActividad.query.order_by(LogActividad.fecha.desc()).limit(100).all()
     return jsonify([{
         'id': log.id,
@@ -782,12 +768,9 @@ def obtener_configuracion():
     return jsonify({
         'configuracion': {c.clave: c.valor for c in configs},
         'posada': {
-            'nombre': posada.nombre,
-            'direccion': posada.direccion,
-            'telefono': posada.telefono,
-            'email': posada.email,
-            'color_primario': posada.color_primario,
-            'color_secundario': posada.color_secundario
+            'nombre': posada.nombre, 'direccion': posada.direccion,
+            'telefono': posada.telefono, 'email': posada.email,
+            'color_primario': posada.color_primario, 'color_secundario': posada.color_secundario
         } if posada else None
     })
 
@@ -798,20 +781,16 @@ def guardar_configuracion():
     if 'configuracion' in data:
         for clave, valor in data['configuracion'].items():
             config = Configuracion.query.filter_by(posada_id=current_user.posada_id, clave=clave).first()
-            if config:
-                config.valor = str(valor)
-            else:
-                db.session.add(Configuracion(clave=clave, valor=str(valor), posada_id=current_user.posada_id))
-    
+            if config: config.valor = str(valor)
+            else: db.session.add(Configuracion(clave=clave, valor=str(valor), posada_id=current_user.posada_id))
     if 'posada' in data:
         posada = db.session.get(Posada, current_user.posada_id)
         if posada:
             for campo in ['nombre', 'direccion', 'telefono', 'email', 'color_primario', 'color_secundario']:
                 if campo in data['posada']:
                     setattr(posada, campo, data['posada'][campo])
-    
     db.session.commit()
-    registrar_log(current_user.id, 'guardar_configuracion', 'Actualizó configuración del sistema')
+    registrar_log(current_user.id, 'guardar_configuracion', 'Actualizó configuración')
     return jsonify({'message': 'Guardado'})
 
 # ============================================================
@@ -844,53 +823,42 @@ def logout_agencia():
 def calendario_agencia():
     if not session.get('agencia_id'):
         return jsonify({'error': 'No autorizado'}), 403
-    
     cancelar_reservas_expiradas()
     mes = int(request.args.get('mes', datetime.now().month))
     año = int(request.args.get('año', datetime.now().year))
     inicio = datetime(año, mes, 1).date()
     fin = (datetime(año + 1, 1, 1) if mes == 12 else datetime(año, mes + 1, 1)).date() - timedelta(days=1)
-    
     todas_habitaciones = Habitacion.query.filter_by(posada_id=1).all()
     total_habitaciones = len(todas_habitaciones)
-    
     reservas = Reserva.query.filter(
         Reserva.posada_id == 1,
         Reserva.estado != 'cancelada',
         Reserva.fecha_entrada <= fin,
         Reserva.fecha_salida >= inicio
     ).all()
-    
     ocupacion_por_dia = {}
     for dia in range(1, fin.day + 1):
         fecha = datetime(año, mes, dia).date()
         fecha_str = fecha.strftime('%Y-%m-%d')
-        
         habs_ocupadas = []
         for r in reservas:
             if r.fecha_entrada <= fecha <= r.fecha_salida:
                 if r.habitacion_id not in habs_ocupadas:
                     habs_ocupadas.append(r.habitacion_id)
-        
         habs_disponibles = [h for h in todas_habitaciones if h.id not in habs_ocupadas]
-        
         ocupacion_por_dia[fecha_str] = {
             'ocupadas': len(habs_ocupadas),
             'disponibles': len(habs_disponibles),
             'total': total_habitaciones,
-            'habitaciones_ocupadas': [{'id': h.id, 'nombre': h.nombre, 'precio_base': h.precio_base} 
-                                      for h in todas_habitaciones if h.id in habs_ocupadas],
-            'habitaciones_disponibles': [{'id': h.id, 'nombre': h.nombre, 'precio_base': h.precio_base} 
-                                         for h in habs_disponibles]
+            'habitaciones_ocupadas': [{'id': h.id, 'nombre': h.nombre, 'precio_base': h.precio_base} for h in todas_habitaciones if h.id in habs_ocupadas],
+            'habitaciones_disponibles': [{'id': h.id, 'nombre': h.nombre, 'precio_base': h.precio_base} for h in habs_disponibles]
         }
-    
     return jsonify({
         'total_dias': fin.day,
         'primer_dia_semana': (inicio.weekday() + 1) % 7,
         'mes': mes, 'año': año,
         'ocupacion_por_dia': ocupacion_por_dia,
-        'habitaciones': [{'id': h.id, 'nombre': h.nombre, 'tipo': h.tipo, 'precio_base': h.precio_base} 
-                        for h in todas_habitaciones]
+        'habitaciones': [{'id': h.id, 'nombre': h.nombre, 'tipo': h.tipo, 'precio_base': h.precio_base} for h in todas_habitaciones]
     })
 
 # ============================================================
@@ -904,13 +872,11 @@ def exportar_reservas():
     año = int(request.args.get('año', datetime.now().year))
     inicio_mes = datetime(año, mes, 1).date()
     fin_mes = (datetime(año + 1, 1, 1) if mes == 12 else datetime(año, mes + 1, 1)).date() - timedelta(days=1)
-    
     reservas = Reserva.query.filter(
         Reserva.posada_id == current_user.posada_id,
         Reserva.fecha_entrada >= inicio_mes,
         Reserva.fecha_entrada <= fin_mes
     ).order_by(Reserva.fecha_entrada).all()
-    
     output = StringIO()
     writer = csv.writer(output)
     writer.writerow(['Localizador', 'Cliente', 'Teléfono', 'Habitación', 'Check-in', 'Check-out', 'Total USD', 'Estado', 'Pago'])
@@ -929,14 +895,12 @@ def exportar_ingresos():
     año = int(request.args.get('año', datetime.now().year))
     inicio_mes = datetime(año, mes, 1).date()
     fin_mes = (datetime(año + 1, 1, 1) if mes == 12 else datetime(año, mes + 1, 1)).date() - timedelta(days=1)
-    
     reservas = Reserva.query.filter(
         Reserva.posada_id == current_user.posada_id,
         Reserva.estado == 'confirmada',
         Reserva.fecha_reserva >= inicio_mes,
         Reserva.fecha_reserva <= fin_mes
     ).order_by(Reserva.fecha_reserva).all()
-    
     output = StringIO()
     writer = csv.writer(output)
     writer.writerow(['Localizador', 'Cliente', 'Teléfono', 'Habitación', 'Check-in', 'Check-out', 'Total USD', 'Pago'])
@@ -961,16 +925,13 @@ def reiniciar_bd():
     try:
         db.drop_all()
         db.create_all()
-        
         posada = Posada(nombre='Demo-Posadas', direccion='Sistema de gestion de prueba')
         db.session.add(posada)
         db.session.commit()
-        
         db.session.add(Usuario(username='admin', password_hash=generate_password_hash('admin123'), rol='admin', posada_id=posada.id))
         db.session.add(Agencia(nombre='Agencia Demo', email='agencia@demo.com', password_hash=generate_password_hash('agencia123'), posada_id=posada.id))
         db.session.add(Configuracion(clave='tiempo_expiracion', valor='40', posada_id=posada.id))
         db.session.commit()
-        
         for nombre, tipo, cap, camas, precio in [
             ('Deluxe Vista al Mar', 'matrimonial', 2, '1 cama King', 80),
             ('Familiar Premium', 'familiar', 4, '2 camas Queen', 120),
@@ -979,7 +940,6 @@ def reiniciar_bd():
             db.session.add(Habitacion(nombre=nombre, tipo=tipo, capacidad=cap, camas=camas, 
                                      precio_base=precio, descripcion='Hermosa habitacion', posada_id=posada.id))
         db.session.commit()
-        
         return jsonify({
             'message': '✅ Base de datos recreada exitosamente',
             'admin': 'admin / admin123',
@@ -999,12 +959,10 @@ with app.app_context():
         posada = Posada(nombre='Demo-Posadas', direccion='Sistema de gestion de prueba')
         db.session.add(posada)
         db.session.commit()
-        
         db.session.add(Usuario(username='admin', password_hash=generate_password_hash('admin123'), rol='admin', posada_id=posada.id))
         db.session.add(Agencia(nombre='Agencia Demo', email='agencia@demo.com', password_hash=generate_password_hash('agencia123'), posada_id=posada.id))
         db.session.add(Configuracion(clave='tiempo_expiracion', valor='40', posada_id=posada.id))
         db.session.commit()
-        
         for nombre, tipo, cap, camas, precio in [
             ('Deluxe Vista al Mar', 'matrimonial', 2, '1 cama King', 80),
             ('Familiar Premium', 'familiar', 4, '2 camas Queen', 120),

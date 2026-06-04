@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard - Panel Admin</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <style>
         :root { --primario: #2C5F8A; --verde: #51CF66; --rojo: #FF6B6B; --amarillo: #FFD43B; }
         body { background: #f5f7fa; font-family: 'Segoe UI', sans-serif; }
@@ -29,6 +30,7 @@
         .pago-pendiente { border-left: 4px solid var(--amarillo); padding: 15px; background: white; border-radius: 10px; margin-bottom: 10px; }
         .footer { text-align: center; padding: 15px; margin-top: 20px; color: #888; font-size: 12px; border-top: 1px solid #eee; }
         .localizador-badge { background: #2C5F8A; color: white; padding: 3px 10px; border-radius: 15px; font-family: monospace; font-size: 14px; }
+        canvas { max-height: 300px; }
         @media (max-width: 768px) {
             .sidebar { min-height: auto; margin-bottom: 15px; border-radius: 10px; }
             .stat-card h2 { font-size: 1.5em; }
@@ -78,6 +80,36 @@
                         <div class="col-6 col-md-3"><div class="card stat-card bg-primary"><div class="card-body"><h6>🏆 MÁS VENDIDA</h6><h5 id="mas-vendida">-</h5><small id="mas-vendida-ingresos"></small></div></div></div>
                         <div class="col-6 col-md-3"><div class="card stat-card bg-secondary"><div class="card-body"><h6>📉 MENOS VENDIDA</h6><h5 id="menos-vendida">-</h5><small id="menos-vendida-ingresos"></small></div></div></div>
                         <div class="col-6 col-md-3"><div class="card stat-card bg-dark"><div class="card-body"><h6>📅 MEJOR TEMPORADA</h6><h5 id="mejor-temporada">-</h5><small id="mejor-temporada-reservas"></small></div></div></div>
+                    </div>
+                    
+                    <!-- GRÁFICOS -->
+                    <div class="row mt-4">
+                        <div class="col-md-6">
+                            <div class="section-panel">
+                                <h5>📊 Reservas por Habitación (90 días)</h5>
+                                <canvas id="graficoHabitaciones" height="250"></canvas>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="section-panel">
+                                <h5>📈 Ocupación por Mes</h5>
+                                <canvas id="graficoOcupacion" height="250"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row mt-3">
+                        <div class="col-md-6">
+                            <div class="section-panel">
+                                <h5>💰 Ingresos por Método de Pago</h5>
+                                <canvas id="graficoPagos" height="250"></canvas>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="section-panel">
+                                <h5>📅 Check-ins por Día de la Semana</h5>
+                                <canvas id="graficoDiasSemana" height="250"></canvas>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -176,9 +208,44 @@
             </div>
         </div>
     </div>
+    
+    <!-- Modal Editar Reserva -->
+    <div class="modal fade" id="modalEditarReserva" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title">✏️ Editar Reserva</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="formEditarReserva">
+                        <input type="hidden" id="edit-reserva-id">
+                        <div class="row g-3">
+                            <div class="col-md-6"><label class="form-label">Nombre Cliente</label><input type="text" id="edit-cliente-nombre" class="form-control"></div>
+                            <div class="col-md-6"><label class="form-label">Teléfono</label><input type="text" id="edit-cliente-telefono" class="form-control"></div>
+                            <div class="col-md-6"><label class="form-label">Email</label><input type="email" id="edit-cliente-email" class="form-control"></div>
+                            <div class="col-md-3"><label class="form-label">Check-in</label><input type="date" id="edit-fecha-entrada" class="form-control"></div>
+                            <div class="col-md-3"><label class="form-label">Check-out</label><input type="date" id="edit-fecha-salida" class="form-control"></div>
+                            <div class="col-md-3"><label class="form-label">Adultos</label><input type="number" id="edit-adultos" class="form-control" min="1"></div>
+                            <div class="col-md-3"><label class="form-label">Niños</label><input type="number" id="edit-ninos" class="form-control" min="0"></div>
+                            <div class="col-md-4"><label class="form-label">Total ($)</label><input type="number" id="edit-total" class="form-control" step="0.01"></div>
+                            <div class="col-md-4"><label class="form-label">Estado</label><select id="edit-estado" class="form-select"><option value="pendiente">Pendiente</option><option value="pago_reportado">Pago Reportado</option><option value="confirmada">Confirmada</option><option value="cancelada">Cancelada</option></select></div>
+                            <div class="col-md-4"><label class="form-label">Método Pago</label><select id="edit-metodo-pago" class="form-select"><option value="zelle">Zelle</option><option value="binance">Binance</option><option value="transferencia">Transferencia</option><option value="efectivo">Efectivo</option><option value="solo_reserva">Solo Reservar</option></select></div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" onclick="guardarEdicionReserva()">💾 Guardar Cambios</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         var mesActual = new Date().getMonth(), añoActual = new Date().getFullYear();
+        let graficoHabs, graficoOcup, graficoPagos, graficoDias;
         
         function cambiarSeccion(s) {
             document.querySelectorAll('[id^="seccion-"]').forEach(e => e.style.display = 'none');
@@ -206,7 +273,6 @@
             fetch('/api/reservas-pendientes').then(r => r.json()).then(d => { document.getElementById('pendientes-pago').textContent = d.length; });
             fetch('/api/ingresos-mes?mes=' + mes + '&año=' + año).then(r => r.json()).then(d => { document.getElementById('ingresos-mes').textContent = '$' + d.total; });
             
-            // Indicadores avanzados
             fetch('/api/indicadores-dashboard').then(r => r.json()).then(d => {
                 if (d.mas_vendida) {
                     document.getElementById('mas-vendida').textContent = d.mas_vendida.nombre;
@@ -220,6 +286,50 @@
                     document.getElementById('mejor-temporada').textContent = d.mejor_temporada.mes;
                     document.getElementById('mejor-temporada-reservas').textContent = d.mejor_temporada.reservas + ' reservas';
                 }
+            });
+            
+            cargarGraficos();
+        }
+        
+        function cargarGraficos() {
+            fetch('/api/graficos-dashboard').then(r => r.json()).then(d => {
+                const ctx1 = document.getElementById('graficoHabitaciones').getContext('2d');
+                if (graficoHabs) graficoHabs.destroy();
+                graficoHabs = new Chart(ctx1, {
+                    type: 'bar',
+                    data: {
+                        labels: d.habitaciones_nombres,
+                        datasets: [{ label: 'Reservas', data: d.habitaciones_reservas, backgroundColor: ['#51CF66', '#FFD43B', '#FF6B6B', '#2C5F8A', '#11998e'], borderRadius: 10 }]
+                    },
+                    options: { responsive: true, plugins: { legend: { display: false } } }
+                });
+                
+                const ctx2 = document.getElementById('graficoOcupacion').getContext('2d');
+                if (graficoOcup) graficoOcup.destroy();
+                graficoOcup = new Chart(ctx2, {
+                    type: 'line',
+                    data: {
+                        labels: d.meses_nombres,
+                        datasets: [{ label: 'Reservas', data: d.meses_reservas, borderColor: '#2C5F8A', backgroundColor: 'rgba(44,95,138,0.1)', fill: true, tension: 0.4, pointRadius: 5 }]
+                    },
+                    options: { responsive: true, plugins: { legend: { display: false } } }
+                });
+                
+                const ctx3 = document.getElementById('graficoPagos').getContext('2d');
+                if (graficoPagos) graficoPagos.destroy();
+                graficoPagos = new Chart(ctx3, {
+                    type: 'doughnut',
+                    data: { labels: d.pagos_nombres, datasets: [{ data: d.pagos_ingresos, backgroundColor: ['#51CF66', '#FFD43B', '#FF6B6B', '#2C5F8A', '#11998e', '#764ba2'], borderWidth: 3 }] },
+                    options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+                });
+                
+                const ctx4 = document.getElementById('graficoDiasSemana').getContext('2d');
+                if (graficoDias) graficoDias.destroy();
+                graficoDias = new Chart(ctx4, {
+                    type: 'bar',
+                    data: { labels: ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'], datasets: [{ label: 'Check-ins', data: d.dias_semana, backgroundColor: '#11998e', borderRadius: 10 }] },
+                    options: { responsive: true, plugins: { legend: { display: false } } }
+                });
             });
         }
         
@@ -259,7 +369,6 @@
         }
         
         document.getElementById('formHabitacion').addEventListener('submit', function(e) { e.preventDefault(); var fd = new FormData(this), s = fd.get('servicios'); if (s) fd.set('servicios', JSON.stringify(s.split(',').map(x => x.trim()))); fetch('/api/habitaciones', {method:'POST', body:fd}).then(r => r.json()).then(d => { if (d.id) { alert('✅ Creada!'); toggleFormHabitacion(); cargarHabitaciones(); } }); });
-        function editarHabitacion(id) { fetch('/api/habitaciones').then(r => r.json()).then(habs => { const h = habs.find(x => x.id === id); if (!h) return; document.getElementById('edit-hab-id').value = h.id; document.getElementById('edit-nombre').value = h.nombre || ''; document.getElementById('edit-tipo').value = h.tipo || ''; document.getElementById('edit-capacidad').value = h.capacidad || 1; document.getElementById('edit-camas').value = h.camas || ''; document.getElementById('edit-precio').value = h.precio_base || 0; document.getElementById('edit-descripcion').value = h.descripcion || ''; let s = h.servicios; if (Array.isArray(s)) s = s.join(', '); else try { s = JSON.parse(s).join(', '); } catch(e) {} document.getElementById('edit-servicios').value = s || ''; new bootstrap.Modal(document.getElementById('modalEditarHabitacion')).show(); }); }
         function eliminarHabitacion(id) { if (confirm('¿Eliminar?')) fetch('/api/habitaciones/' + id, {method:'DELETE'}).then(() => cargarHabitaciones()); }
         function cambiarTipoTarifa() { var t = document.getElementById('tipoTarifa').value; document.getElementById('divFechasContainer').style.display = t === 'rango_fechas' ? 'flex' : 'none'; document.getElementById('divDias').style.display = t !== 'rango_fechas' ? 'flex' : 'none'; }
         
@@ -268,9 +377,59 @@
         function cargarTarifas() { fetch('/api/tarifas').then(r => r.json()).then(d => { var html = '<h5>Tarifas activas:</h5>'; if (d.length === 0) html += '<p class="text-muted">No hay tarifas.</p>'; else d.forEach(t => { var tipoTexto = t.tipo === 'rango_fechas' ? '📅 Rango' : '📆 Días'; var detalle = t.tipo === 'rango_fechas' ? (t.fecha_inicio + ' → ' + t.fecha_fin) : (t.dias_aplicacion ? t.dias_aplicacion.split(',').map(d => ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'][parseInt(d)]).join(',') : ''); var signo = t.multiplicador >= 0 ? '+' : ''; html += '<div class="d-flex justify-content-between p-2 bg-light rounded mb-2"><span><strong>' + t.nombre + '</strong> (' + signo + '$' + t.multiplicador + '/noche) <span class="badge bg-info">' + tipoTexto + '</span></span><span>' + detalle + ' <button class="btn btn-danger btn-sm" onclick="eliminarTarifa(' + t.id + ')">🗑️</button></span></div>'; }); document.getElementById('lista-tarifas').innerHTML = html; }); }
         function eliminarTarifa(id) { if (confirm('¿Eliminar?')) fetch('/api/tarifas/' + id, {method:'DELETE'}).then(() => cargarTarifas()); }
         
-        function cargarPagos() { fetch('/api/reservas-pendientes').then(r => r.json()).then(d => { var html = ''; if (d.length === 0) html = '<div class="alert alert-info">✅ No hay pagos pendientes</div>'; else d.forEach(r => { html += '<div class="pago-pendiente"><div class="row"><div class="col-md-6"><span class="localizador-badge">🔑 ' + r.localizador + '</span><br><strong>' + r.cliente_nombre + '</strong>' + (r.solo_reserva ? ' <span class="badge bg-warning">⏱️</span>' : '') + '<p>📞 ' + r.cliente_telefono + '</p><small>📅 ' + r.fecha_entrada + ' → ' + r.fecha_salida + '</small>' + (r.fecha_expiracion ? '<br><small class="text-danger">⏰ Expira: ' + r.fecha_expiracion + '</small>' : '') + (r.comprobante ? '<br><a href="/static/uploads/' + r.comprobante + '" target="_blank" class="btn btn-sm btn-info">📎</a>' : '') + (r.aprobado_por ? '<br><small>👤 ' + r.aprobado_por + '</small>' : '') + (r.comentario_rechazo ? '<br><small class="text-danger">❌ ' + r.comentario_rechazo + '</small>' : '') + '</div><div class="col-md-6 text-end"><h4>$' + r.total + '</h4><span class="badge bg-primary">' + (r.metodo_pago || '-') + '</span><br><button class="btn btn-success btn-sm mt-1" onclick="validarPago(' + r.id + ',\'confirmada\')">✅</button> <button class="btn btn-danger btn-sm mt-1" onclick="validarPago(' + r.id + ',\'cancelada\')">❌</button></div></div></div>'; }); document.getElementById('lista-pagos').innerHTML = html; }); }
+        function cargarPagos() { fetch('/api/reservas-pendientes').then(r => r.json()).then(d => { var html = ''; if (d.length === 0) html = '<div class="alert alert-info">✅ No hay pagos pendientes</div>'; else d.forEach(r => { html += '<div class="pago-pendiente"><div class="row"><div class="col-md-6"><span class="localizador-badge">🔑 ' + r.localizador + '</span><br><strong>' + r.cliente_nombre + '</strong>' + (r.solo_reserva ? ' <span class="badge bg-warning">⏱️</span>' : '') + '<p>📞 ' + r.cliente_telefono + '</p><small>📅 ' + r.fecha_entrada + ' → ' + r.fecha_salida + '</small>' + (r.fecha_expiracion ? '<br><small class="text-danger">⏰ Expira: ' + r.fecha_expiracion + '</small>' : '') + (r.comprobante ? '<br><a href="/static/uploads/' + r.comprobante + '" target="_blank" class="btn btn-sm btn-info">📎</a>' : '') + '</div><div class="col-md-6 text-end"><h4>$' + r.total + '</h4><span class="badge bg-primary">' + (r.metodo_pago || '-') + '</span><br><button class="btn btn-success btn-sm mt-1" onclick="validarPago(' + r.id + ',\'confirmada\')">✅</button> <button class="btn btn-danger btn-sm mt-1" onclick="validarPago(' + r.id + ',\'cancelada\')">❌</button> <button class="btn btn-warning btn-sm mt-1" onclick="abrirEditarReserva(' + r.id + ')">✏️</button></div></div></div>'; }); document.getElementById('lista-pagos').innerHTML = html; }); }
         
-        function cargarReservas() { fetch('/api/todas-reservas').then(r => r.json()).then(d => { var html = ''; if (d.length === 0) html = '<div class="alert alert-info">📋 No hay reservas</div>'; else { html += '<div class="table-responsive"><table class="table table-striped"><thead><tr><th>Localizador</th><th>Cliente</th><th>Hab</th><th>In</th><th>Out</th><th>$</th><th>Estado</th><th>Expira</th><th>Pago</th><th>Info</th></tr></thead><tbody>'; d.forEach(r => { var ec = r.estado === 'confirmada' ? 'success' : r.estado === 'pago_reportado' ? 'warning' : r.estado === 'pendiente' ? 'info' : 'danger'; var info = ''; if (r.aprobado_por) info += '<small class="text-success">✅ ' + r.aprobado_por + '</small>'; if (r.comentario_rechazo) info += '<small class="text-danger">❌ ' + r.comentario_rechazo + '</small>'; html += '<tr><td><span class="localizador-badge">' + r.localizador + '</span>' + (r.solo_reserva ? ' ⏱️' : '') + '</td><td><strong>' + r.cliente_nombre + '</strong><br><small>📞 ' + r.cliente_telefono + '</small></td><td>' + (r.habitacion_nombre || '-') + '</td><td>' + r.fecha_entrada + '</td><td>' + r.fecha_salida + '</td><td>$' + r.total + '</td><td><span class="badge bg-' + ec + '">' + r.estado + '</span></td><td><small>' + (r.fecha_expiracion || '-') + '</small></td><td>' + (r.metodo_pago || '-') + '</td><td>' + (info || '-') + '</td></tr>'; }); html += '</tbody></table></div>'; } document.getElementById('lista-reservas').innerHTML = html; }); }
+        function cargarReservas() { fetch('/api/todas-reservas').then(r => r.json()).then(d => { var html = ''; if (d.length === 0) html = '<div class="alert alert-info">📋 No hay reservas</div>'; else { html += '<div class="table-responsive"><table class="table table-striped"><thead><tr><th>Localizador</th><th>Cliente</th><th>Hab</th><th>In</th><th>Out</th><th>$</th><th>Estado</th><th>Expira</th><th>Pago</th><th>Acciones</th></tr></thead><tbody>'; d.forEach(r => { var ec = r.estado === 'confirmada' ? 'success' : r.estado === 'pago_reportado' ? 'warning' : r.estado === 'pendiente' ? 'info' : 'danger'; html += '<tr><td><span class="localizador-badge">' + r.localizador + '</span>' + (r.solo_reserva ? ' ⏱️' : '') + '</td><td><strong>' + r.cliente_nombre + '</strong><br><small>📞 ' + r.cliente_telefono + '</small></td><td>' + (r.habitacion_nombre || '-') + '</td><td>' + r.fecha_entrada + '</td><td>' + r.fecha_salida + '</td><td>$' + r.total + '</td><td><span class="badge bg-' + ec + '">' + r.estado + '</span></td><td><small>' + (r.fecha_expiracion || '-') + '</small></td><td>' + (r.metodo_pago || '-') + '</td><td><button class="btn btn-warning btn-sm" onclick="abrirEditarReserva(' + r.id + ')">✏️ Editar</button></td></tr>'; }); html += '</tbody></table></div>'; } document.getElementById('lista-reservas').innerHTML = html; }); }
+        
+        function abrirEditarReserva(id) {
+            fetch('/api/todas-reservas').then(r => r.json()).then(reservas => {
+                const r = reservas.find(x => x.id === id);
+                if (!r) return;
+                document.getElementById('edit-reserva-id').value = r.id;
+                document.getElementById('edit-cliente-nombre').value = r.cliente_nombre || '';
+                document.getElementById('edit-cliente-telefono').value = r.cliente_telefono || '';
+                document.getElementById('edit-cliente-email').value = r.cliente_email || '';
+                document.getElementById('edit-fecha-entrada').value = r.fecha_entrada;
+                document.getElementById('edit-fecha-salida').value = r.fecha_salida;
+                document.getElementById('edit-adultos').value = r.adultos || 1;
+                document.getElementById('edit-ninos').value = r.ninos || 0;
+                document.getElementById('edit-total').value = r.total;
+                document.getElementById('edit-estado').value = r.estado;
+                document.getElementById('edit-metodo-pago').value = r.metodo_pago || 'zelle';
+                new bootstrap.Modal(document.getElementById('modalEditarReserva')).show();
+            });
+        }
+        
+        function guardarEdicionReserva() {
+            const id = document.getElementById('edit-reserva-id').value;
+            const data = {
+                cliente_nombre: document.getElementById('edit-cliente-nombre').value,
+                cliente_telefono: document.getElementById('edit-cliente-telefono').value,
+                cliente_email: document.getElementById('edit-cliente-email').value,
+                fecha_entrada: document.getElementById('edit-fecha-entrada').value,
+                fecha_salida: document.getElementById('edit-fecha-salida').value,
+                adultos: parseInt(document.getElementById('edit-adultos').value),
+                ninos: parseInt(document.getElementById('edit-ninos').value),
+                total: parseFloat(document.getElementById('edit-total').value),
+                estado: document.getElementById('edit-estado').value,
+                metodo_pago: document.getElementById('edit-metodo-pago').value
+            };
+            
+            fetch('/api/reservas/' + id, {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(data)
+            }).then(r => r.json()).then(d => {
+                if (d.message) {
+                    alert('✅ Reserva actualizada');
+                    bootstrap.Modal.getInstance(document.getElementById('modalEditarReserva')).hide();
+                    cargarReservas();
+                    cargarPagos();
+                } else {
+                    alert('❌ Error: ' + (d.error || 'Desconocido'));
+                }
+            });
+        }
         
         function validarPago(id, accion) { var c = ''; if (accion === 'cancelada') { c = prompt('¿Motivo?'); if (!c) return; } if (confirm('¿' + (accion === 'confirmada' ? 'Aprobar' : 'Rechazar') + '?')) fetch('/api/validar-pago/' + id, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({accion:accion, comentario:c})}).then(() => { cargarPagos(); cargarDashboard(); }); }
         
