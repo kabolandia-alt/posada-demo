@@ -410,7 +410,16 @@ def crear_reserva():
                 file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
                 comprobante = filename
         solo_reserva = metodo_pago == 'solo_reserva'
-        expiracion = datetime.utcnow() + timedelta(minutes=40) if solo_reserva else None
+        # Leer tiempo de expiración desde configuración
+        minutos_expiracion = 40
+        if solo_reserva:
+            config = Configuracion.query.filter_by(posada_id=hab.posada_id, clave='tiempo_expiracion').first()
+            if config:
+                try:
+                    minutos_expiracion = int(config.valor)
+                except:
+                    minutos_expiracion = 40
+        expiracion = datetime.utcnow() + timedelta(minutes=minutos_expiracion) if solo_reserva else None
         localizador = generar_localizador(hab.posada_id)
         reserva = Reserva(
             localizador=localizador,
@@ -578,7 +587,7 @@ def reservas_pendientes():
     cancelar_reservas_expiradas()
     posada_id = current_user.posada_id if current_user.posada_id else 1
     reservas = Reserva.query.filter_by(posada_id=posada_id).filter(
-        Reserva.estado.in_(['pago_reportado', 'pendiente'])
+        Reserva.estado.in_(['pago_reportado', 'pendiente', 'confirmada'])
     ).order_by(Reserva.fecha_reserva.desc()).all()
     resultado = []
     for r in reservas:
@@ -876,8 +885,17 @@ def validar_pago(reserva_id):
         reserva.estado = accion
         reserva.aprobado_por = current_user.username
         reserva.fecha_aprobacion = datetime.utcnow()
-        if reserva.estado == 'cancelada':
+        
+        # Si se confirma, quitar expiración (ya es permanente)
+        if accion == 'confirmada':
+            reserva.fecha_expiracion = None
+            reserva.solo_reserva = False
+        
+        # Si se rechaza, permitir comentario
+        if accion == 'cancelada':
             reserva.comentario_rechazo = data.get('comentario', '')
+            reserva.fecha_expiracion = None
+        
         db.session.commit()
         registrar_log(current_user.id, 'validar_pago', f'{accion} reserva {reserva.localizador}')
         return jsonify({'message': 'Actualizado'})
