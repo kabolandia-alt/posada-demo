@@ -271,6 +271,31 @@
         </div>
     </div>
 
+    <!-- Modal Editar Habitación -->
+    <div class="modal fade" id="modalEditarHabitacion" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-warning"><h5 class="modal-title">✏️ Editar Habitación</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                <div class="modal-body">
+                    <form id="formEditarHabitacion" enctype="multipart/form-data">
+                        <input type="hidden" id="edit-hab-id">
+                        <div class="row g-3">
+                            <div class="col-md-6"><label class="form-label">Nombre</label><input type="text" id="edit-nombre" class="form-control" required></div>
+                            <div class="col-md-3"><label class="form-label">Tipo</label><select id="edit-tipo" class="form-select"><option value="matrimonial">Matrimonial</option><option value="triple">Triple</option><option value="familiar">Familiar</option><option value="suite">Suite</option></select></div>
+                            <div class="col-md-3"><label class="form-label">Capacidad</label><input type="number" id="edit-capacidad" class="form-control" min="1"></div>
+                            <div class="col-md-4"><label class="form-label">Camas</label><input type="text" id="edit-camas" class="form-control"></div>
+                            <div class="col-md-4"><label class="form-label">Precio Base ($)</label><input type="number" id="edit-precio" class="form-control" step="0.01"></div>
+                            <div class="col-md-4"><label class="form-label">📸 Imagen</label><input type="file" id="edit-imagen" class="form-control" accept="image/*"></div>
+                            <div class="col-12"><label class="form-label">Descripción</label><textarea id="edit-descripcion" class="form-control" rows="2"></textarea></div>
+                            <div class="col-12"><label class="form-label">Servicios</label><input type="text" id="edit-servicios" class="form-control"></div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button class="btn btn-warning" onclick="guardarEdicionHabitacion()">💾 Guardar Cambios</button></div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         var mesActual = new Date().getMonth(), añoActual = new Date().getFullYear();
@@ -377,14 +402,54 @@
         }
 
         function toggleFormHabitacion() { var f = document.getElementById('form-nueva-habitacion'); f.style.display = (f.style.display === 'none' ? 'block' : 'none'); }
+        
         function cargarHabitaciones() {
             fetch('/api/habitaciones').then(r => r.json()).then(d => {
                 var html = ''; if (d.length === 0) html = '<div class="alert alert-info">No hay habitaciones.</div>';
-                else d.forEach(h => { var img = h.imagen ? '/static/uploads/' + h.imagen : 'https://via.placeholder.com/300x200?text=Sin+Imagen'; html += '<div class="col-md-6 col-lg-4"><div class="habitacion-admin-card"><img src="' + img + '"><div class="mt-2"><h5>' + h.nombre + ' <span class="badge bg-primary">' + h.tipo + '</span></h5><p><strong>$' + h.precio_base + '</strong>/noche · 👥 ' + h.capacidad + ' pers.</p><button class="btn btn-danger btn-sm" onclick="eliminarHabitacion(' + h.id + ')">🗑️</button></div></div></div>'; });
+                else d.forEach(h => { var img = h.imagen ? '/static/uploads/' + h.imagen : 'https://via.placeholder.com/300x200?text=Sin+Imagen'; html += '<div class="col-md-6 col-lg-4"><div class="habitacion-admin-card"><img src="' + img + '"><div class="mt-2"><h5>' + h.nombre + ' <span class="badge bg-primary">' + h.tipo + '</span></h5><p><strong>$' + h.precio_base + '</strong>/noche · 👥 ' + h.capacidad + ' pers.</p><button class="btn btn-warning btn-sm me-1" onclick="editarHabitacion(' + h.id + ')">✏️</button><button class="btn btn-danger btn-sm" onclick="eliminarHabitacion(' + h.id + ')">🗑️</button></div></div></div>'; });
                 document.getElementById('lista-habitaciones').innerHTML = html;
             });
         }
+        
         document.getElementById('formHabitacion').addEventListener('submit', function(e) { e.preventDefault(); var fd = new FormData(this), s = fd.get('servicios'); if (s) fd.set('servicios', JSON.stringify(s.split(',').map(x => x.trim()))); fetch('/api/habitaciones', {method:'POST', body:fd}).then(r => r.json()).then(d => { if (d.id) { alert('✅ Creada!'); toggleFormHabitacion(); cargarHabitaciones(); } }); });
+        
+        function editarHabitacion(id) {
+            fetch('/api/habitaciones').then(r => r.json()).then(habs => {
+                const h = habs.find(x => x.id === id);
+                if (!h) return;
+                document.getElementById('edit-hab-id').value = h.id;
+                document.getElementById('edit-nombre').value = h.nombre || '';
+                document.getElementById('edit-tipo').value = h.tipo || 'matrimonial';
+                document.getElementById('edit-capacidad').value = h.capacidad || 1;
+                document.getElementById('edit-camas').value = h.camas || '';
+                document.getElementById('edit-precio').value = h.precio_base || 0;
+                document.getElementById('edit-descripcion').value = h.descripcion || '';
+                let s = h.servicios;
+                if (Array.isArray(s)) s = s.join(', ');
+                else try { s = JSON.parse(s).join(', '); } catch(e) {}
+                document.getElementById('edit-servicios').value = s || '';
+                new bootstrap.Modal(document.getElementById('modalEditarHabitacion')).show();
+            });
+        }
+
+        function guardarEdicionHabitacion() {
+            const id = document.getElementById('edit-hab-id').value;
+            const data = {
+                nombre: document.getElementById('edit-nombre').value,
+                tipo: document.getElementById('edit-tipo').value,
+                capacidad: parseInt(document.getElementById('edit-capacidad').value),
+                camas: document.getElementById('edit-camas').value,
+                precio_base: parseFloat(document.getElementById('edit-precio').value),
+                descripcion: document.getElementById('edit-descripcion').value,
+                servicios: JSON.stringify(document.getElementById('edit-servicios').value.split(',').map(x => x.trim()))
+            };
+            fetch('/api/habitaciones/' + id, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) })
+            .then(r => r.json()).then(d => {
+                if (d.message) { alert('✅ Habitación actualizada'); bootstrap.Modal.getInstance(document.getElementById('modalEditarHabitacion')).hide(); cargarHabitaciones(); }
+                else alert('❌ Error: ' + (d.error || 'Desconocido'));
+            });
+        }
+
         function eliminarHabitacion(id) { if (confirm('¿Eliminar?')) fetch('/api/habitaciones/' + id, {method:'DELETE'}).then(() => cargarHabitaciones()); }
         
         function cambiarTipoTarifa() { var t = document.getElementById('tipoTarifa').value; document.getElementById('divFechasContainer').style.display = t === 'rango_fechas' ? 'flex' : 'none'; document.getElementById('divDias').style.display = t !== 'rango_fechas' ? 'flex' : 'none'; }
