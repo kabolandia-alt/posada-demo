@@ -159,7 +159,7 @@
                 </div>
 
                 <!-- PAGOS -->
-                <div id="seccion-pagos" style="display:none;"><h2 class="mb-3">💰 Pagos Pendientes</h2><div id="lista-pagos"></div></div>
+                <div id="seccion-pagos" style="display:none;"><h2 class="mb-3">💰 Pagos Pendientes de Validación</h2><div id="lista-pagos"></div></div>
 
                 <!-- RESERVAS -->
                 <div id="seccion-reservas" style="display:none;"><h2 class="mb-3">📋 Todas las Reservas</h2><div id="lista-reservas"></div></div>
@@ -261,7 +261,7 @@
                             <div class="col-md-3"><label class="form-label">Adultos</label><input type="number" id="edit-adultos" class="form-control" min="1"></div>
                             <div class="col-md-3"><label class="form-label">Niños</label><input type="number" id="edit-ninos" class="form-control" min="0"></div>
                             <div class="col-md-4"><label class="form-label">Total ($)</label><input type="number" id="edit-total" class="form-control" step="0.01"></div>
-                            <div class="col-md-4"><label class="form-label">Estado</label><select id="edit-estado" class="form-select"><option value="pendiente">Pendiente</option><option value="pago_reportado">Pago Reportado</option><option value="confirmada">Confirmada</option><option value="cancelada">Cancelada</option></select></div>
+                            <div class="col-md-4"><label class="form-label">Estado</label><select id="edit-estado" class="form-select"><option value="reservado">Reservado</option><option value="pago_pendiente">Pago Pendiente</option><option value="confirmada">Confirmada</option><option value="cancelada">Cancelada</option></select></div>
                             <div class="col-md-4"><label class="form-label">Método Pago</label><select id="edit-metodo-pago" class="form-select"><option value="zelle">Zelle</option><option value="binance">Binance</option><option value="transferencia">Transferencia</option><option value="efectivo">Efectivo</option><option value="solo_reserva">Solo Reservar</option></select></div>
                         </div>
                     </form>
@@ -301,7 +301,6 @@
         var mesActual = new Date().getMonth(), añoActual = new Date().getFullYear();
         let graficoHabs, graficoOcup, graficoPagos, graficoDias;
 
-        // Aplicar colores de la posada y verificar rol
         fetch('/api/verificar-rol').then(r => r.json()).then(d => {
             if (d.rol === 'super_admin') {
                 window.location.href = '/super-admin';
@@ -337,7 +336,10 @@
                 if (d.ocupacion_por_dia && d.ocupacion_por_dia[hoy]) ocupadas = d.ocupacion_por_dia[hoy].ocupadas;
                 document.getElementById('ocupadas-hoy').textContent = ocupadas;
             });
-            fetch('/api/reservas-pendientes').then(r => r.json()).then(d => { document.getElementById('pendientes-pago').textContent = d.length; });
+            fetch('/api/todas-reservas').then(r => r.json()).then(d => {
+                const pendientes = d.filter(r => r.estado === 'reservado' || r.estado === 'pago_pendiente').length;
+                document.getElementById('pendientes-pago').textContent = pendientes;
+            });
             fetch('/api/ingresos-mes?mes=' + mes + '&año=' + año).then(r => r.json()).then(d => { document.getElementById('ingresos-mes').textContent = '$' + d.total; });
             fetch('/api/indicadores-dashboard').then(r => r.json()).then(d => {
                 if (d.mas_vendida) {
@@ -457,11 +459,78 @@
         function cargarTarifas() { fetch('/api/tarifas').then(r => r.json()).then(d => { var html = '<h5>Tarifas activas:</h5>'; if (d.length === 0) html += '<p class="text-muted">No hay tarifas.</p>'; else d.forEach(t => { var tipoTexto = t.tipo === 'rango_fechas' ? '📅 Rango' : '📆 Días'; var detalle = t.tipo === 'rango_fechas' ? (t.fecha_inicio + ' → ' + t.fecha_fin) : (t.dias_aplicacion ? t.dias_aplicacion.split(',').map(d => ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'][parseInt(d)]).join(',') : ''); var signo = t.multiplicador >= 0 ? '+' : ''; html += '<div class="d-flex justify-content-between p-2 bg-light rounded mb-2"><span><strong>' + t.nombre + '</strong> (' + signo + '$' + t.multiplicador + '/noche) <span class="badge bg-info">' + tipoTexto + '</span></span><span>' + detalle + ' <button class="btn btn-danger btn-sm" onclick="eliminarTarifa(' + t.id + ')">🗑️</button></span></div>'; }); document.getElementById('lista-tarifas').innerHTML = html; }); }
         function eliminarTarifa(id) { if (confirm('¿Eliminar?')) fetch('/api/tarifas/' + id, {method:'DELETE'}).then(() => cargarTarifas()); }
 
-        function cargarPagos() { fetch('/api/reservas-pendientes').then(r => r.json()).then(d => { var html = ''; if (d.length === 0) html = '<div class="alert alert-info">✅ No hay pagos pendientes</div>'; else d.forEach(r => { html += '<div class="pago-pendiente"><div class="row"><div class="col-md-6"><span class="localizador-badge">🔑 ' + r.localizador + '</span><br><strong>' + r.cliente_nombre + '</strong>' + (r.solo_reserva ? ' <span class="badge bg-warning">⏱️</span>' : '') + '<p>📞 ' + r.cliente_telefono + '</p><small>📅 ' + r.fecha_entrada + ' → ' + r.fecha_salida + '</small>' + (r.fecha_expiracion ? '<br><small class="text-danger">⏰ Expira: ' + r.fecha_expiracion + '</small>' : '') + (r.comprobante ? '<br><a href="/static/uploads/' + r.comprobante + '" target="_blank" class="btn btn-sm btn-info">📎</a>' : '') + '</div><div class="col-md-6 text-end"><h4>$' + r.total + '</h4><span class="badge bg-primary">' + (r.metodo_pago || '-') + '</span><br><button class="btn btn-success btn-sm mt-1" onclick="validarPago(' + r.id + ',\'confirmada\')">✅</button> <button class="btn btn-danger btn-sm mt-1" onclick="validarPago(' + r.id + ',\'cancelada\')">❌</button> <button class="btn btn-warning btn-sm mt-1" onclick="abrirEditarReserva(' + r.id + ')">✏️</button></div></div></div>'; }); document.getElementById('lista-pagos').innerHTML = html; }); }
+        function cargarPagos() { 
+            fetch('/api/reservas-pendientes').then(r => r.json()).then(d => { 
+                var html = ''; 
+                if (d.length === 0) html = '<div class="alert alert-success">✅ No hay pagos pendientes de validación</div>'; 
+                else {
+                    html += '<div class="alert alert-info">📌 Estas reservas fueron enviadas por el departamento de reservas. <strong>Valida el comprobante</strong> y aprueba o rechaza.</div>';
+                    d.forEach(r => { 
+                        html += '<div class="pago-pendiente"><div class="row"><div class="col-md-6"><span class="localizador-badge">🔑 ' + r.localizador + '</span><br><strong>' + r.cliente_nombre + '</strong><p>📞 ' + r.cliente_telefono + ' | ✉️ ' + r.cliente_email + '</p><small>📅 ' + r.fecha_entrada + ' → ' + r.fecha_salida + '</small><br><small>🏨 ' + r.habitacion_nombre + '</small>' + (r.comprobante ? '<br><a href="/static/uploads/' + r.comprobante + '" target="_blank" class="btn btn-sm btn-info mt-2">📎 Ver Comprobante</a>' : '<br><span class="badge bg-warning">Sin comprobante</span>') + '</div><div class="col-md-6 text-end"><h4>$' + r.total + '</h4><span class="badge bg-primary">' + (r.metodo_pago || '-') + '</span><br><span class="badge bg-info">' + r.estado + '</span><br><button class="btn btn-success btn-lg mt-2 w-100" onclick="validarPago(' + r.id + ',\'confirmada\')">✅ APROBAR PAGO</button><button class="btn btn-danger btn-sm mt-1 w-100" onclick="validarPago(' + r.id + ',\'cancelada\')">❌ Rechazar Pago</button></div></div></div>'; 
+                    }); 
+                } 
+                document.getElementById('lista-pagos').innerHTML = html; 
+            }); 
+        }
 
-        function cargarReservas() { fetch('/api/todas-reservas').then(r => r.json()).then(d => { var html = ''; if (d.length === 0) html = '<div class="alert alert-info">📋 No hay reservas</div>'; else { html += '<div class="table-responsive"><table class="table table-striped"><thead><tr><th>Localizador</th><th>Cliente</th><th>Hab</th><th>In</th><th>Out</th><th>$</th><th>Estado</th><th>Expira</th><th>Pago</th><th>Acciones</th></tr></thead><tbody>'; d.forEach(r => { var ec = r.estado === 'confirmada' ? 'success' : r.estado === 'pago_reportado' ? 'warning' : r.estado === 'pendiente' ? 'info' : 'danger'; html += '<tr><td><span class="localizador-badge">' + r.localizador + '</span>' + (r.solo_reserva ? ' ⏱️' : '') + '</td><td><strong>' + r.cliente_nombre + '</strong><br><small>📞 ' + r.cliente_telefono + '</small></td><td>' + (r.habitacion_nombre || '-') + '</td><td>' + r.fecha_entrada + '</td><td>' + r.fecha_salida + '</td><td>$' + r.total + '</td><td><span class="badge bg-' + ec + '">' + r.estado + '</span></td><td><small>' + (r.fecha_expiracion || '-') + '</small></td><td>' + (r.metodo_pago || '-') + '</td><td><button class="btn btn-warning btn-sm" onclick="abrirEditarReserva(' + r.id + ')">✏️ Editar</button></td></tr>'; }); html += '</tbody></table></div>'; } document.getElementById('lista-reservas').innerHTML = html; }); }
+        function cargarReservas() { 
+            fetch('/api/todas-reservas').then(r => r.json()).then(d => { 
+                var html = ''; 
+                if (d.length === 0) html = '<div class="alert alert-info">📋 No hay reservas registradas</div>'; 
+                else { 
+                    html += '<div class="table-responsive"><table class="table table-striped"><thead><tr><th>Localizador</th><th>Cliente</th><th>Hab</th><th>In</th><th>Out</th><th>$</th><th>Estado</th><th>Huéspedes</th><th>Acciones</th></tr></thead><tbody>'; 
+                    d.forEach(r => { 
+                        var ec = r.estado === 'confirmada' ? 'success' : r.estado === 'pago_pendiente' ? 'info' : r.estado === 'reservado' ? 'warning' : 'danger';
+                        var huespedesInfo = '';
+                        if (r.huespedes && r.huespedes.length > 0) {
+                            huespedesInfo = r.huespedes.map(h => h.nombre).join(', ');
+                        }
+                        html += '<tr><td><span class="localizador-badge">' + r.localizador + '</span></td><td><strong>' + r.cliente_nombre + '</strong><br><small>📞 ' + r.cliente_telefono + '</small></td><td>' + (r.habitacion_nombre || '-') + '</td><td>' + r.fecha_entrada + '</td><td>' + r.fecha_salida + '</td><td>$' + r.total + '</td><td><span class="badge bg-' + ec + '">' + r.estado + '</span></td><td><small>' + (huespedesInfo || 'No registrado') + '</small></td><td>';
+                        
+                        if (r.estado === 'reservado') {
+                            html += '<button class="btn btn-info btn-sm me-1" onclick="enviarAValidarPago(' + r.id + ')" title="Enviar a validación de pagos">📤 Enviar a Pagos</button>';
+                        }
+                        html += '<button class="btn btn-warning btn-sm" onclick="abrirEditarReserva(' + r.id + ')">✏️ Gestionar</button></td></tr>'; 
+                    }); 
+                    html += '</tbody></table></div>'; 
+                } 
+                document.getElementById('lista-reservas').innerHTML = html; 
+            }); 
+        }
 
-        function cargarHistoricos() { fetch('/api/reservas-historicas').then(r => r.json()).then(d => { var html = ''; if (d.length === 0) html = '<div class="alert alert-info">📦 No hay reservas históricas (más de 3 meses)</div>'; else { html += '<div class="table-responsive"><table class="table table-striped"><thead><tr><th>Localizador</th><th>Cliente</th><th>Tel</th><th>Hab</th><th>In</th><th>Out</th><th>$</th><th>Estado</th><th>Motivo Rechazo</th><th>Fecha</th></tr></thead><tbody>'; d.forEach(r => { var ec = r.estado === 'confirmada' ? 'success' : r.estado === 'cancelada' ? 'danger' : r.estado === 'pendiente' ? 'warning' : 'info'; html += '<tr><td><span class="localizador-badge">' + r.localizador + '</span></td><td>' + r.cliente_nombre + '</td><td>' + r.cliente_telefono + '</td><td>' + r.habitacion_nombre + '</td><td>' + r.fecha_entrada + '</td><td>' + r.fecha_salida + '</td><td>$' + r.total + '</td><td><span class="badge bg-' + ec + '">' + r.estado + '</span></td><td><small class="text-danger">' + (r.comentario_rechazo || '-') + '</small></td><td><small>' + r.fecha_reserva + '</small></td></tr>'; }); html += '</tbody></table></div>'; } document.getElementById('lista-historicos').innerHTML = html; }); }
+        function enviarAValidarPago(id) {
+            if (confirm('¿Enviar esta reserva a Validación de Pagos?\n\nEsto significa que el cliente ya fue contactado y está listo para pagar.\n\nLa reserva dejará de tener tiempo límite de expiración.')) {
+                fetch('/api/reservas/' + id, {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ estado: 'pago_pendiente' })
+                }).then(r => r.json()).then(d => {
+                    if (d.message) {
+                        alert('✅ Reserva enviada a Validar Pagos');
+                        cargarReservas();
+                        cargarDashboard();
+                    } else {
+                        alert('❌ Error: ' + (d.error || 'Desconocido'));
+                    }
+                });
+            }
+        }
+
+        function cargarHistoricos() { 
+            fetch('/api/reservas-historicas').then(r => r.json()).then(d => { 
+                var html = ''; 
+                if (d.length === 0) html = '<div class="alert alert-info">📦 No hay reservas históricas (más de 3 meses)</div>'; 
+                else { 
+                    html += '<div class="table-responsive"><table class="table table-striped"><thead><tr><th>Localizador</th><th>Cliente</th><th>Tel</th><th>Hab</th><th>In</th><th>Out</th><th>$</th><th>Estado</th><th>Motivo Rechazo</th><th>Fecha</th></tr></thead><tbody>'; 
+                    d.forEach(r => { 
+                        var ec = r.estado === 'confirmada' ? 'success' : r.estado === 'cancelada' ? 'danger' : r.estado === 'pendiente' ? 'warning' : 'info'; 
+                        html += '<tr><td><span class="localizador-badge">' + r.localizador + '</span></td><td>' + r.cliente_nombre + '</td><td>' + r.cliente_telefono + '</td><td>' + r.habitacion_nombre + '</td><td>' + r.fecha_entrada + '</td><td>' + r.fecha_salida + '</td><td>$' + r.total + '</td><td><span class="badge bg-' + ec + '">' + r.estado + '</span></td><td><small class="text-danger">' + (r.comentario_rechazo || '-') + '</small></td><td><small>' + r.fecha_reserva + '</small></td></tr>'; 
+                    }); 
+                    html += '</tbody></table></div>'; 
+                } 
+                document.getElementById('lista-historicos').innerHTML = html; 
+            }); 
+        }
 
         function abrirEditarReserva(id) {
             fetch('/api/todas-reservas').then(r => r.json()).then(reservas => {

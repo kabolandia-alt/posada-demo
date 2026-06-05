@@ -26,8 +26,6 @@
         .datos-pago { background: #fff3cd; border-radius: 10px; padding: 15px; margin: 15px 0; }
         .localizador-destacado { background: linear-gradient(135deg, #2C5F8A, #1a3a5c); color: white; padding: 15px; border-radius: 15px; text-align: center; margin: 15px 0; font-size: 1.5em; font-family: monospace; letter-spacing: 3px; font-weight: bold; }
         .localizador-info { background: #e8f5e9; border-radius: 10px; padding: 10px; text-align: center; color: #2e7d32; font-weight: bold; margin-top: 10px; }
-        .btn-pagar { background: #28a745; color: white; border: none; padding: 15px; border-radius: 10px; font-weight: bold; font-size: 1.2em; width: 100%; }
-        .btn-pagar:hover { background: #218838; }
         .footer { text-align: center; color: white; padding: 20px; opacity: 0.7; font-size: 12px; }
         @media (max-width: 768px) { .header h1 { font-size: 2em; } .modal-content { padding: 15px; } }
     </style>
@@ -113,7 +111,7 @@
         let habitacionSeleccionada = null, totalSeleccionado = 0;
         
         const datosPagoInfo = {
-            solo_reserva: `<strong>📝 Reserva Sin Pago:</strong><br>⏰ Tiene <strong>40 minutos</strong> para pagar.<br>Pasado ese tiempo, se cancela automáticamente.`,
+            solo_reserva: `<strong>📝 Reserva Sin Pago:</strong><br>⏰ Tiene <strong>40 minutos</strong> para confirmar.<br>Serás contactado por nuestro departamento de reservas.`,
             zelle: `<strong>💵 Zelle:</strong><br>Titular: Demo Posadas C.A.<br>Email: pagos@demo-posadas.com`,
             binance: `<strong>₿ Binance:</strong><br>ID: 123456789<br>Red BSC (BEP20) o TRC20`,
             transferencia: `<strong>🏦 Transferencia:</strong><br>Banco: Internacional<br>Cuenta: 0123-4567-89`,
@@ -210,7 +208,6 @@
                 if (data.reserva_id) {
                     document.getElementById('formReserva').style.display = 'none';
                     
-                    // Mostrar localizador con botón de PAGAR AHORA
                     let html = `
                         <div class="localizador-destacado">🔑 ${data.localizador}</div>
                         <div class="localizador-info">📌 GUARDA ESTE CÓDIGO - Lo necesitarás para todo</div>
@@ -222,10 +219,10 @@
                     if (data.estado === 'reservado') {
                         html += `
                             <div class="text-center mt-3">
-                                <button class="btn-pagar" onclick="pagarAhora('${data.localizador}', ${data.total})">
-                                    💳 PAGAR AHORA
-                                </button>
-                                <small class="text-muted d-block mt-2">⏰ Tienes 40 minutos para pagar</small>
+                                <div class="alert alert-warning">
+                                    📞 <strong>Tu reserva está siendo procesada</strong><br>
+                                    <small>Serás contactado por nuestro departamento de reservas</small>
+                                </div>
                             </div>
                         `;
                     }
@@ -233,49 +230,10 @@
                     document.getElementById('localizadorExito').innerHTML = html;
                     document.getElementById('localizadorExito').style.display = 'block';
                     
-                    alert('✅ ¡Reserva creada!\n\n🔑 Localizador: ' + data.localizador + '\nTotal: $' + data.total);
+                    alert('✅ ¡Reserva creada!\n\n🔑 Localizador: ' + data.localizador + '\nTotal: $' + data.total + '\n\nSerás contactado pronto.');
                 } else { alert('❌ ' + (data.error || 'Error al crear la reserva')); }
             }).catch(() => alert('❌ Error de conexión'));
         });
-        
-        function pagarAhora(localizador, total) {
-            const metodo = prompt('Elige método de pago:\n\n1 - Zelle\n2 - Binance\n3 - Transferencia\n4 - Efectivo\n\nEscribe el número:', '1');
-            if (!metodo) return;
-            const metodos = { '1': 'zelle', '2': 'binance', '3': 'transferencia', '4': 'efectivo' };
-            const metodoPago = metodos[metodo] || 'zelle';
-            
-            const formData = new FormData();
-            formData.append('localizador', localizador);
-            formData.append('metodo_pago', metodoPago);
-            
-            if (metodoPago !== 'efectivo') {
-                const input = document.createElement('input');
-                input.type = 'file';
-                input.accept = 'image/*,.pdf';
-                input.onchange = function() {
-                    if (this.files[0]) {
-                        formData.append('comprobante', this.files[0]);
-                        enviarPago(formData);
-                    }
-                };
-                input.click();
-            } else {
-                enviarPago(formData);
-            }
-        }
-        
-        function enviarPago(formData) {
-            fetch('/api/pagar-reserva', { method: 'POST', body: formData })
-            .then(r => r.json()).then(d => {
-                if (d.message) {
-                    alert('✅ ¡Pago registrado!\n\nTu reserva está siendo validada.\nLocalizador: ' + d.localizador);
-                    cerrarModal();
-                    buscarDisponibilidad();
-                } else {
-                    alert('❌ ' + (d.error || 'Error al registrar pago'));
-                }
-            });
-        }
         
         document.getElementById('modalReserva').addEventListener('click', function(e) { if (e.target === this) cerrarModal(); });
         

@@ -454,45 +454,6 @@ def crear_reserva():
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/pagar-reserva', methods=['POST'])
-def pagar_reserva():
-    """Cliente paga una reserva existente"""
-    try:
-        localizador = request.form.get('localizador')
-        metodo_pago = request.form.get('metodo_pago', 'zelle')
-        
-        reserva = Reserva.query.filter_by(localizador=localizador.upper()).first()
-        if not reserva:
-            return jsonify({'error': 'Reserva no encontrada'}), 404
-        
-        comprobante = None
-        if metodo_pago != 'efectivo' and 'comprobante' in request.files:
-            file = request.files['comprobante']
-            if file and file.filename:
-                filename = secure_filename(file.filename)
-                filename = f"pago_{datetime.now().strftime('%Y%m%d%H%M%S')}_{filename}"
-                os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-                file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
-                comprobante = filename
-        
-        reserva.metodo_pago = metodo_pago
-        reserva.comprobante = comprobante
-        reserva.estado = 'pago_pendiente'
-        reserva.fecha_expiracion = None
-        reserva.solo_reserva = False
-        
-        db.session.commit()
-        registrar_log(1, 'pago_reserva', f'Cliente pagó reserva: {localizador} - {metodo_pago}')
-        
-        return jsonify({
-            'message': 'Pago registrado exitosamente',
-            'localizador': reserva.localizador,
-            'estado': reserva.estado
-        })
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({'error': str(e)}), 500
-
 @app.route('/api/consultar-reserva/<localizador>')
 def consultar_reserva_por_localizador(localizador):
     try:
@@ -537,9 +498,12 @@ def editar_reserva(reserva_id):
             reserva.fecha_salida = datetime.strptime(data['fecha_salida'], '%Y-%m-%d').date()
         if 'datos_huespedes' in data:
             reserva.datos_huespedes = json.dumps(data['datos_huespedes'])
-        if 'estado' in data and data['estado'] == 'confirmada':
+        
+        # Quitar expiración cuando pasa a pago_pendiente o confirmada
+        if 'estado' in data and data['estado'] in ['confirmada', 'pago_pendiente']:
             reserva.fecha_expiracion = None
             reserva.solo_reserva = False
+        
         db.session.commit()
         registrar_log(current_user.id, 'editar_reserva', f'Editó reserva {reserva.localizador}')
         return jsonify({'message': 'Reserva actualizada correctamente'})
