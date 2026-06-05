@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Super Admin - Panel Global</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        :root { --primario: #1a1a2e; --dorado: #e6b800; }
+        body { background: #f5f7fa; font-family: 'Segoe UI', sans-serif; }
+        .sidebar { background: var(--primario); min-height: 100vh; color: white; padding: 20px 15px; }
+        .sidebar h4 { color: var(--dorado); }
+        .sidebar .nav-link { color: rgba(255,255,255,0.8); padding: 12px 15px; border-radius: 10px; margin: 3px 0; cursor: pointer; display: block; text-decoration: none; }
+        .sidebar .nav-link:hover, .sidebar .nav-link.active { background: rgba(255,255,255,0.15); color: white; }
+        .stat-card { border-radius: 15px; border: none; color: white; margin-bottom: 15px; }
+        .stat-card h2 { font-size: 2.5em; font-weight: bold; }
+        .section-panel { background: white; border-radius: 15px; padding: 25px; box-shadow: 0 3px 10px rgba(0,0,0,0.05); margin-bottom: 20px; }
+        .footer { text-align: center; padding: 15px; margin-top: 20px; color: #888; font-size: 12px; border-top: 1px solid #eee; }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-md-2 sidebar">
+                <h4 class="text-center mb-4">🟢 SUPER ADMIN</h4>
+                <nav class="nav flex-column">
+                    <a class="nav-link active" href="#" onclick="cambiarSeccion('dashboard');return false;">📊 Panel Global</a>
+                    <a class="nav-link" href="#" onclick="cambiarSeccion('posadas');return false;">🏨 Posadas</a>
+                    <a class="nav-link" href="#" onclick="cambiarSeccion('logs');return false;">📝 Logs</a>
+                    <hr style="border-color: rgba(255,255,255,0.3);">
+                    <a class="nav-link text-warning" href="/admin/logout">🚪 Cerrar Sesión</a>
+                </nav>
+            </div>
+            <div class="col-md-10 p-4">
+                <!-- PANEL GLOBAL -->
+                <div id="seccion-dashboard">
+                    <h2 class="mb-4">📊 Panel de Control Global</h2>
+                    <div class="row g-3">
+                        <div class="col-md-3"><div class="card stat-card bg-primary"><div class="card-body"><h6>POSADAS ACTIVAS</h6><h2 id="total-posadas">-</h2></div></div></div>
+                        <div class="col-md-3"><div class="card stat-card bg-success"><div class="card-body"><h6>TOTAL HABITACIONES</h6><h2 id="total-habs">-</h2></div></div></div>
+                        <div class="col-md-3"><div class="card stat-card bg-info"><div class="card-body"><h6>TOTAL RESERVAS</h6><h2 id="total-reservas">-</h2></div></div></div>
+                        <div class="col-md-3"><div class="card stat-card bg-warning text-dark"><div class="card-body"><h6>INGRESOS GLOBALES</h6><h2 id="ingresos-globales">-</h2></div></div></div>
+                    </div>
+                    <div class="section-panel mt-4">
+                        <h5>📋 Resumen por Posada</h5>
+                        <div id="resumen-posadas"></div>
+                    </div>
+                </div>
+
+                <!-- POSADAS -->
+                <div id="seccion-posadas" style="display:none;">
+                    <h2 class="mb-3">🏨 Gestión de Posadas</h2>
+                    <button class="btn btn-success mb-3" onclick="mostrarFormPosada()">+ Nueva Posada</button>
+                    <div id="form-nueva-posada" class="section-panel" style="display:none;">
+                        <h4>📝 Registrar Nueva Posada</h4>
+                        <div class="row g-3">
+                            <div class="col-md-6"><label class="form-label">Nombre *</label><input type="text" id="nuevaPosadaNombre" class="form-control" required></div>
+                            <div class="col-md-6"><label class="form-label">Email *</label><input type="email" id="nuevaPosadaEmail" class="form-control" required></div>
+                            <div class="col-md-6"><label class="form-label">Dirección</label><input type="text" id="nuevaPosadaDireccion" class="form-control"></div>
+                            <div class="col-md-6"><label class="form-label">Teléfono</label><input type="text" id="nuevaPosadaTelefono" class="form-control"></div>
+                            <div class="col-md-3"><label class="form-label">Color Primario</label><input type="color" id="nuevaPosadaColor1" class="form-control" value="#2C5F8A"></div>
+                            <div class="col-md-3"><label class="form-label">Color Secundario</label><input type="color" id="nuevaPosadaColor2" class="form-control" value="#51CF66"></div>
+                            <div class="col-12"><button class="btn btn-primary" onclick="registrarPosada()">💾 Registrar Posada</button></div>
+                        </div>
+                    </div>
+                    <div id="lista-posadas"></div>
+                </div>
+
+                <!-- LOGS -->
+                <div id="seccion-logs" style="display:none;">
+                    <h2 class="mb-3">📝 Registro de Actividad</h2>
+                    <div id="lista-logs"></div>
+                </div>
+
+                <div class="footer">© 2026 <strong>Nova Tech</strong> - Super Admin Panel - Desarrollado por <strong>José García</strong></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function cambiarSeccion(s) {
+            document.querySelectorAll('[id^="seccion-"]').forEach(e => e.style.display = 'none');
+            var el = document.getElementById('seccion-' + s); if (el) el.style.display = 'block';
+            document.querySelectorAll('.sidebar .nav-link').forEach(l => l.classList.remove('active'));
+            document.querySelectorAll('.sidebar .nav-link').forEach(l => { if (l.textContent.toLowerCase().includes(s)) l.classList.add('active'); });
+            if (s === 'dashboard') cargarPanelGlobal();
+            if (s === 'posadas') cargarPosadas();
+            if (s === 'logs') cargarLogs();
+        }
+
+        function cargarPanelGlobal() {
+            fetch('/api/posadas').then(r => r.json()).then(posadas => {
+                document.getElementById('total-posadas').textContent = posadas.length;
+                let totalHabs = 0, totalReservas = 0;
+                posadas.forEach(p => {
+                    totalHabs += p.habitaciones;
+                    totalReservas += p.reservas;
+                });
+                document.getElementById('total-habs').textContent = totalHabs;
+                document.getElementById('total-reservas').textContent = totalReservas;
+                document.getElementById('ingresos-globales').textContent = '-';
+
+                let html = '<div class="table-responsive"><table class="table"><thead><tr><th>Posada</th><th>Email</th><th>Habs</th><th>Reservas</th><th>Estado</th></tr></thead><tbody>';
+                posadas.forEach(p => {
+                    html += `<tr><td><strong>${p.nombre}</strong><br><small>${p.direccion||''}</small></td><td>${p.email}</td><td>${p.habitaciones}</td><td>${p.reservas}</td><td>${p.activo?'🟢':'🔴'}</td></tr>`;
+                });
+                html += '</tbody></table></div>';
+                document.getElementById('resumen-posadas').innerHTML = html;
+            });
+        }
+
+        function mostrarFormPosada() {
+            var f = document.getElementById('form-nueva-posada');
+            f.style.display = f.style.display === 'none' ? 'block' : 'none';
+        }
+
+        function registrarPosada() {
+            const data = {
+                nombre: document.getElementById('nuevaPosadaNombre').value,
+                email: document.getElementById('nuevaPosadaEmail').value,
+                direccion: document.getElementById('nuevaPosadaDireccion').value,
+                telefono: document.getElementById('nuevaPosadaTelefono').value,
+                color_primario: document.getElementById('nuevaPosadaColor1').value,
+                color_secundario: document.getElementById('nuevaPosadaColor2').value
+            };
+            fetch('/api/posadas', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(data)
+            }).then(r => r.json()).then(d => {
+                if (d.posada_id) {
+                    alert('✅ Posada creada!\n\nAdmin: ' + d.admin_usuario + '\nPassword: admin123\n\nGuarda estos datos para tu cliente.');
+                    mostrarFormPosada();
+                    cargarPosadas();
+                } else {
+                    alert('❌ ' + (d.error || 'Error'));
+                }
+            });
+        }
+
+        function cargarPosadas() {
+            fetch('/api/posadas').then(r => r.json()).then(d => {
+                var html = '<h5>Posadas registradas:</h5>';
+                if (d.length === 0) html += '<p>No hay posadas.</p>';
+                else {
+                    html += '<div class="table-responsive"><table class="table"><thead><tr><th>ID</th><th>Nombre</th><th>Email</th><th>Habs</th><th>Reservas</th><th>Estado</th></tr></thead><tbody>';
+                    d.forEach(p => {
+                        html += `<tr><td>${p.id}</td><td><strong>${p.nombre}</strong></td><td>${p.email}</td><td>${p.habitaciones}</td><td>${p.reservas}</td><td>${p.activo?'🟢':'🔴'}</td></tr>`;
+                    });
+                    html += '</tbody></table></div>';
+                }
+                document.getElementById('lista-posadas').innerHTML = html;
+            });
+        }
+
+        function cargarLogs() {
+            fetch('/api/logs').then(r => r.json()).then(d => {
+                var html = '<div class="table-responsive"><table class="table table-striped"><thead><tr><th>Fecha</th><th>Usuario</th><th>Acción</th><th>Descripción</th></tr></thead><tbody>';
+                d.forEach(log => {
+                    html += `<tr><td><small>${log.fecha}</small></td><td>${log.usuario}</td><td><span class="badge bg-info">${log.accion}</span></td><td>${log.descripcion}</td></tr>`;
+                });
+                html += '</tbody></table></div>';
+                document.getElementById('lista-logs').innerHTML = html;
+            });
+        }
+
+        cargarPanelGlobal();
+    </script>
+</body>
+</html>

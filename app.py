@@ -154,17 +154,6 @@ def verificar_permiso(usuario, permiso_requerido):
     permisos = json.loads(usuario.permisos) if usuario.permisos else []
     return permiso_requerido in permisos
 
-def requiere_permiso(permiso):
-    def decorator(f):
-        @wraps(f)
-        @login_required
-        def decorated_function(*args, **kwargs):
-            if not verificar_permiso(current_user, permiso):
-                return jsonify({'error': 'No tienes permisos para esta acción'}), 403
-            return f(*args, **kwargs)
-        return decorated_function
-    return decorator
-
 def cancelar_reservas_expiradas():
     ahora = datetime.utcnow()
     reservas_expiradas = Reserva.query.filter(
@@ -198,48 +187,12 @@ def load_user(user_id):
     return db.session.get(Usuario, int(user_id))
 
 # ============================================================
-# RUTAS PÚBLICAS (CLIENTES)
+# RUTAS PÚBLICAS
 # ============================================================
 
 @app.route('/')
 def inicio():
-    posadas = Posada.query.filter_by(activo=True).count()
-    if posadas == 1:
-        posada = Posada.query.filter_by(activo=True).first()
-        return render_template('cliente/inicio.html', posada=posada)
-    elif posadas > 1:
-        return render_template('cliente/landing.html')
-    else:
-        return render_template('cliente/inicio.html', posada=None)
-
-@app.route('/posada/<int:posada_id>')
-def inicio_posada(posada_id):
-    posada = db.session.get(Posada, posada_id)
-    if not posada or not posada.activo:
-        return "Posada no encontrada", 404
-    return render_template('cliente/inicio.html', posada=posada)
-
-@app.route('/api/posada/<int:posada_id>/info')
-def info_posada(posada_id):
-    posada = db.session.get(Posada, posada_id)
-    if not posada:
-        return jsonify({'error': 'Posada no encontrada'}), 404
-    return jsonify({
-        'id': posada.id, 'nombre': posada.nombre,
-        'direccion': posada.direccion, 'telefono': posada.telefono,
-        'email': posada.email, 'color_primario': posada.color_primario,
-        'color_secundario': posada.color_secundario,
-        'total_habitaciones': Habitacion.query.filter_by(posada_id=posada_id).count()
-    })
-
-@app.route('/api/posadas-publicas')
-def posadas_publicas():
-    posadas = Posada.query.filter_by(activo=True).all()
-    return jsonify([{
-        'id': p.id, 'nombre': p.nombre, 'direccion': p.direccion,
-        'telefono': p.telefono,
-        'habitaciones': Habitacion.query.filter_by(posada_id=p.id).count()
-    } for p in posadas])
+    return render_template('cliente/inicio.html')
 
 # ============================================================
 # RUTAS ADMIN
@@ -254,14 +207,26 @@ def login_admin():
         if user and check_password_hash(user.password_hash, password):
             login_user(user)
             registrar_log(user.id, 'login', f'Inicio de sesión: {user.username} ({user.rol})')
-            return redirect(url_for('panel_admin'))
+            if user.rol == 'super_admin':
+                return redirect(url_for('panel_super_admin'))
+            else:
+                return redirect(url_for('panel_admin'))
         return render_template('admin/login.html', error='Usuario o contraseña incorrectos')
     return render_template('admin/login.html')
 
 @app.route('/admin')
 @login_required
 def panel_admin():
+    if current_user.rol == 'super_admin':
+        return redirect(url_for('panel_super_admin'))
     return render_template('admin/dashboard.html')
+
+@app.route('/super-admin')
+@login_required
+def panel_super_admin():
+    if current_user.rol != 'super_admin':
+        return redirect(url_for('panel_admin'))
+    return render_template('admin/super_admin.html')
 
 @app.route('/admin/logout')
 @login_required
@@ -269,6 +234,11 @@ def logout_admin():
     registrar_log(current_user.id, 'logout', f'Cierre de sesión: {current_user.username}')
     logout_user()
     return redirect(url_for('login_admin'))
+
+@app.route('/api/verificar-rol')
+@login_required
+def verificar_rol():
+    return jsonify({'rol': current_user.rol, 'username': current_user.username})
 
 # ============================================================
 # API HABITACIONES
@@ -334,21 +304,6 @@ def actualizar_habitacion(id):
             for campo in ['nombre', 'tipo', 'capacidad', 'camas', 'precio_base', 'descripcion', 'servicios']:
                 if campo in data:
                     setattr(hab, campo, data[campo])
-        else:
-            for campo in ['nombre', 'tipo', 'capacidad', 'camas', 'precio_base', 'descripcion', 'servicios']:
-                if campo in request.form:
-                    setattr(hab, campo, request.form[campo])
-            if 'imagen' in request.files:
-                file = request.files['imagen']
-                if file and file.filename:
-                    if hab.imagen:
-                        old_path = os.path.join(app.config['UPLOAD_FOLDER'], hab.imagen)
-                        if os.path.exists(old_path): os.remove(old_path)
-                    filename = secure_filename(file.filename)
-                    filename = f"{datetime.now().strftime('%Y%m%d%H%M%S')}_{filename}"
-                    os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-                    file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
-                    hab.imagen = filename
         db.session.commit()
         registrar_log(current_user.id, 'editar_habitacion', f'Editó habitación: {hab.nombre}')
         return jsonify({'message': 'Actualizada correctamente'})
@@ -838,29 +793,8 @@ def crear_usuario():
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/usuarios/<int:usuario_id>', methods=['PUT'])
-@login_required
-def editar_usuario(usuario_id):
-    usuario = db.session.get(Usuario, usuario_id)
-    if not usuario:
-        return jsonify({'error': 'Usuario no encontrado'}), 404
-    if current_user.rol not in ['super_admin', 'admin']:
-        return jsonify({'error': 'No autorizado'}), 403
-    try:
-        data = request.json
-        if 'permisos' in data: usuario.permisos = json.dumps(data['permisos'])
-        if 'activo' in data: usuario.activo = data['activo']
-        if 'password' in data and data['password']:
-            usuario.password_hash = generate_password_hash(data['password'])
-        db.session.commit()
-        registrar_log(current_user.id, 'editar_usuario', f'Editó usuario: {usuario.username}')
-        return jsonify({'message': 'Usuario actualizado'})
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({'error': str(e)}), 500
-
 # ============================================================
-# GESTIÓN DE POSADAS
+# GESTIÓN DE POSADAS (SOLO SUPER ADMIN)
 # ============================================================
 
 @app.route('/api/posadas', methods=['GET'])
