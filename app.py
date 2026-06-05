@@ -140,10 +140,8 @@ def generar_localizador(posada_id):
 def registrar_log(usuario_id, accion, descripcion, posada_id=None):
     try:
         log = LogActividad(
-            usuario_id=usuario_id,
-            accion=accion,
-            descripcion=descripcion,
-            posada_id=posada_id or 1
+            usuario_id=usuario_id, accion=accion,
+            descripcion=descripcion, posada_id=posada_id or 1
         )
         db.session.add(log)
         db.session.commit()
@@ -200,12 +198,52 @@ def load_user(user_id):
     return db.session.get(Usuario, int(user_id))
 
 # ============================================================
-# RUTAS BÁSICAS
+# RUTAS PÚBLICAS (CLIENTES)
 # ============================================================
 
 @app.route('/')
 def inicio():
-    return render_template('cliente/inicio.html')
+    posadas = Posada.query.filter_by(activo=True).count()
+    if posadas == 1:
+        posada = Posada.query.filter_by(activo=True).first()
+        return render_template('cliente/inicio.html', posada=posada)
+    elif posadas > 1:
+        return render_template('cliente/landing.html')
+    else:
+        return render_template('cliente/inicio.html', posada=None)
+
+@app.route('/posada/<int:posada_id>')
+def inicio_posada(posada_id):
+    posada = db.session.get(Posada, posada_id)
+    if not posada or not posada.activo:
+        return "Posada no encontrada", 404
+    return render_template('cliente/inicio.html', posada=posada)
+
+@app.route('/api/posada/<int:posada_id>/info')
+def info_posada(posada_id):
+    posada = db.session.get(Posada, posada_id)
+    if not posada:
+        return jsonify({'error': 'Posada no encontrada'}), 404
+    return jsonify({
+        'id': posada.id, 'nombre': posada.nombre,
+        'direccion': posada.direccion, 'telefono': posada.telefono,
+        'email': posada.email, 'color_primario': posada.color_primario,
+        'color_secundario': posada.color_secundario,
+        'total_habitaciones': Habitacion.query.filter_by(posada_id=posada_id).count()
+    })
+
+@app.route('/api/posadas-publicas')
+def posadas_publicas():
+    posadas = Posada.query.filter_by(activo=True).all()
+    return jsonify([{
+        'id': p.id, 'nombre': p.nombre, 'direccion': p.direccion,
+        'telefono': p.telefono,
+        'habitaciones': Habitacion.query.filter_by(posada_id=p.id).count()
+    } for p in posadas])
+
+# ============================================================
+# RUTAS ADMIN
+# ============================================================
 
 @app.route('/admin/login', methods=['GET', 'POST'])
 def login_admin():
@@ -446,7 +484,7 @@ def consultar_reserva_por_localizador(localizador):
     try:
         reserva = Reserva.query.filter_by(localizador=localizador.upper()).first()
         if not reserva:
-            return jsonify({'error': 'Reserva no encontrada. Verifica tu localizador.'}), 404
+            return jsonify({'error': 'Reserva no encontrada'}), 404
         hab = db.session.get(Habitacion, reserva.habitacion_id)
         return jsonify({
             'localizador': reserva.localizador,
@@ -614,10 +652,10 @@ def todas_reservas():
             'id': r.id, 'localizador': r.localizador, 'cliente_nombre': r.cliente_nombre,
             'cliente_telefono': r.cliente_telefono or 'No registrado',
             'cliente_email': r.cliente_email or 'No registrado',
-            'habitacion_nombre': hab.nombre if hab else 'N/A',
-            'habitacion_id': r.habitacion_id, 'fecha_entrada': str(r.fecha_entrada),
-            'fecha_salida': str(r.fecha_salida), 'total': r.total, 'adultos': r.adultos,
-            'ninos': r.ninos, 'estado': r.estado, 'metodo_pago': r.metodo_pago or '-',
+            'habitacion_nombre': hab.nombre if hab else 'N/A', 'habitacion_id': r.habitacion_id,
+            'fecha_entrada': str(r.fecha_entrada), 'fecha_salida': str(r.fecha_salida),
+            'total': r.total, 'adultos': r.adultos, 'ninos': r.ninos,
+            'estado': r.estado, 'metodo_pago': r.metodo_pago or '-',
             'solo_reserva': r.solo_reserva, 'fecha_expiracion': expiracion,
             'aprobado_por': r.aprobado_por, 'fecha_aprobacion': fecha_aprob,
             'comentario_rechazo': r.comentario_rechazo,
@@ -769,10 +807,8 @@ def crear_usuario():
             posada_id = current_user.posada_id
         else:
             return jsonify({'error': 'No tienes permisos para crear usuarios'}), 403
-        
         if Usuario.query.filter_by(username=data['username']).first():
             return jsonify({'error': 'El usuario ya existe'}), 400
-        
         roles_permitidos = {
             'super_admin': ['admin', 'manager', 'recepcionista', 'contador'],
             'admin': ['manager', 'recepcionista', 'contador'],
@@ -781,7 +817,6 @@ def crear_usuario():
         rol = data.get('rol', 'recepcionista')
         if rol not in roles_permitidos.get(current_user.rol, []):
             return jsonify({'error': f'No puedes crear usuarios con rol: {rol}'}), 403
-        
         permisos_default = {
             'admin': ['ver_todo', 'editar_todo', 'crear_usuarios', 'eliminar', 'exportar'],
             'manager': ['ver_reservas', 'editar_reservas', 'ver_ingresos', 'exportar'],
@@ -789,13 +824,11 @@ def crear_usuario():
             'contador': ['ver_ingresos', 'exportar', 'ver_reservas']
         }
         permisos = data.get('permisos', permisos_default.get(rol, []))
-        
         usuario = Usuario(
             username=data['username'],
             password_hash=generate_password_hash(data.get('password', 'cambiar123')),
             rol=rol, posada_id=posada_id,
-            permisos=json.dumps(permisos),
-            creado_por=current_user.id
+            permisos=json.dumps(permisos), creado_por=current_user.id
         )
         db.session.add(usuario)
         db.session.commit()
@@ -815,10 +848,8 @@ def editar_usuario(usuario_id):
         return jsonify({'error': 'No autorizado'}), 403
     try:
         data = request.json
-        if 'permisos' in data:
-            usuario.permisos = json.dumps(data['permisos'])
-        if 'activo' in data:
-            usuario.activo = data['activo']
+        if 'permisos' in data: usuario.permisos = json.dumps(data['permisos'])
+        if 'activo' in data: usuario.activo = data['activo']
         if 'password' in data and data['password']:
             usuario.password_hash = generate_password_hash(data['password'])
         db.session.commit()
@@ -1066,10 +1097,9 @@ def reiniciar_bd():
         db.drop_all()
         db.create_all()
         
-        # Super Admin (TÚ - José)
+        # Super Admin
         db.session.add(Usuario(
-            username='super_admin',
-            password_hash=generate_password_hash('admin123'),
+            username='super_admin', password_hash=generate_password_hash('admin123'),
             rol='super_admin', posada_id=None,
             permisos=json.dumps(['ver_todo', 'crear_posadas', 'eliminar_todo', 'gestionar_usuarios'])
         ))
@@ -1079,15 +1109,12 @@ def reiniciar_bd():
         db.session.add(posada)
         db.session.commit()
         
-        # Admin de la posada demo
         db.session.add(Usuario(
-            username='admin',
-            password_hash=generate_password_hash('admin123'),
+            username='admin', password_hash=generate_password_hash('admin123'),
             rol='admin', posada_id=posada.id,
             permisos=json.dumps(['ver_todo', 'editar_todo', 'crear_usuarios', 'eliminar', 'exportar'])
         ))
-        
-        db.session.add(Agencia(nombre='Agencia Demo', email='agencia@demo.com', 
+        db.session.add(Agencia(nombre='Agencia Demo', email='agencia@demo.com',
                               password_hash=generate_password_hash('agencia123'), posada_id=posada.id))
         db.session.add(Configuracion(clave='tiempo_expiracion', valor='40', posada_id=posada.id))
         db.session.commit()
@@ -1119,8 +1146,7 @@ with app.app_context():
     db.create_all()
     if not Usuario.query.filter_by(username='super_admin').first():
         db.session.add(Usuario(
-            username='super_admin',
-            password_hash=generate_password_hash('admin123'),
+            username='super_admin', password_hash=generate_password_hash('admin123'),
             rol='super_admin', posada_id=None,
             permisos=json.dumps(['ver_todo', 'crear_posadas', 'eliminar_todo', 'gestionar_usuarios'])
         ))

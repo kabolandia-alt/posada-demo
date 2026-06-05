@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Reserva - Demo-Posadas</title>
+    <title>Reserva - Posada</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/material_blue.css">
@@ -26,12 +26,18 @@
         .datos-pago { background: #fff3cd; border-radius: 10px; padding: 15px; margin: 15px 0; }
         .localizador-destacado { background: linear-gradient(135deg, #2C5F8A, #1a3a5c); color: white; padding: 15px; border-radius: 15px; text-align: center; margin: 15px 0; font-size: 1.5em; font-family: monospace; letter-spacing: 3px; font-weight: bold; }
         .localizador-info { background: #e8f5e9; border-radius: 10px; padding: 10px; text-align: center; color: #2e7d32; font-weight: bold; margin-top: 10px; }
+        .btn-volver { color: white; text-decoration: none; font-size: 0.9em; opacity: 0.8; }
+        .btn-volver:hover { opacity: 1; color: white; }
         @media (max-width: 768px) { .header h1 { font-size: 2em; } .modal-content { padding: 15px; } }
     </style>
 </head>
 <body>
     <div class="container py-4">
-        <div class="header"><h1>🌴 Demo-Posadas</h1><p class="lead">Encuentra tu escapada perfecta</p></div>
+        <div class="header">
+            <h1>🌴 <span id="nombrePosada">Cargando...</span></h1>
+            <p class="lead" id="direccionPosada"></p>
+            <a href="/" class="btn-volver">← Ver todas las posadas</a>
+        </div>
         <div class="row justify-content-center">
             <div class="col-lg-8">
                 <div class="search-card">
@@ -106,16 +112,34 @@
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/es.js"></script>
     <script>
+        // Detectar posada por URL
+        const posadaId = window.location.pathname.split('/posada/')[1] || 1;
+        
+        // Cargar datos de la posada
+        fetch('/api/posada/' + posadaId + '/info')
+            .then(r => r.json())
+            .then(posada => {
+                document.getElementById('nombrePosada').textContent = posada.nombre;
+                document.getElementById('direccionPosada').textContent = posada.direccion || '';
+                document.title = 'Reserva - ' + posada.nombre;
+                if (posada.color_primario) {
+                    document.documentElement.style.setProperty('--primario', posada.color_primario);
+                }
+                if (posada.color_secundario) {
+                    document.documentElement.style.setProperty('--verde', posada.color_secundario);
+                }
+            });
+        
         const fpEntrada = flatpickr("#fechaEntrada", { locale: "es", minDate: "today", dateFormat: "Y-m-d", onChange: function(_, d) { fpSalida.set('minDate', d); } });
         const fpSalida = flatpickr("#fechaSalida", { locale: "es", minDate: "today", dateFormat: "Y-m-d" });
         let habitacionSeleccionada = null, totalSeleccionado = 0;
         
         const datosPagoInfo = {
-            solo_reserva: `<strong>📝 Reserva Sin Pago:</strong><br>⏰ Tiene <strong>40 minutos</strong> para pagar.<br>Pasado ese tiempo, se cancela automáticamente.`,
+            solo_reserva: `<strong>📝 Reserva Sin Pago:</strong><br>⏰ Tiene <strong>40 minutos</strong> para pagar.`,
             zelle: `<strong>💵 Zelle:</strong><br>Titular: Demo Posadas C.A.<br>Email: pagos@demo-posadas.com`,
             binance: `<strong>₿ Binance:</strong><br>ID: 123456789<br>Red BSC (BEP20) o TRC20`,
             transferencia: `<strong>🏦 Transferencia:</strong><br>Banco: Internacional<br>Cuenta: 0123-4567-89`,
-            efectivo: `<strong>💵 Efectivo:</strong><br>Acérquese a nuestra oficina.<br>Dirección: Calle Principal #123`
+            efectivo: `<strong>💵 Efectivo:</strong><br>Acérquese a nuestra oficina.`
         };
         
         function mostrarDatosPago() {
@@ -135,7 +159,7 @@
             if (!entrada || !salida) { alert('⚠️ Selecciona fechas'); return; }
             document.getElementById('cargando').style.display = 'block';
             document.getElementById('resultados').innerHTML = '';
-            fetch(`/api/disponibilidad/1?entrada=${entrada}&salida=${salida}`).then(r => r.json()).then(data => {
+            fetch(`/api/disponibilidad/${posadaId}?entrada=${entrada}&salida=${salida}`).then(r => r.json()).then(data => {
                 document.getElementById('cargando').style.display = 'none';
                 let html = '';
                 if (data.length === 0) html = '<div class="col-12 text-center text-white mt-4"><h3>😔 No hay habitaciones disponibles</h3></div>';
@@ -209,11 +233,11 @@
                     document.getElementById('formReserva').style.display = 'none';
                     document.getElementById('localizadorCodigo').textContent = data.localizador;
                     document.getElementById('localizadorExito').style.display = 'block';
-                    let msg = '✅ ¡Reserva creada exitosamente!\n\n🔑 TU LOCALIZADOR: ' + data.localizador + '\n\n📌 GUARDA ESTE CÓDIGO\n\nTotal: $' + data.total;
-                    if (metodo === 'solo_reserva') msg += '\n\n⏰ Tienes 40 minutos para confirmar el pago';
+                    let msg = '✅ ¡Reserva creada!\n\n🔑 LOCALIZADOR: ' + data.localizador + '\n\n📌 GUARDA ESTE CÓDIGO\n\nTotal: $' + data.total;
+                    if (metodo === 'solo_reserva') msg += '\n\n⏰ 40 minutos para pagar';
                     alert(msg);
                     setTimeout(() => { cerrarModal(); buscarDisponibilidad(); }, 5000);
-                } else { alert('❌ ' + (data.error || 'Error al crear la reserva')); }
+                } else { alert('❌ ' + (data.error || 'Error')); }
             }).catch(() => alert('❌ Error de conexión'));
         });
         
@@ -221,28 +245,18 @@
         
         function consultarReserva() {
             const localizador = document.getElementById('buscarLocalizador').value.trim().toUpperCase();
-            if (!localizador || localizador.length < 6) { alert('⚠️ Ingresa un localizador válido de 6 caracteres'); return; }
+            if (!localizador || localizador.length < 6) { alert('⚠️ Ingresa un localizador válido'); return; }
             fetch('/api/consultar-reserva/' + localizador).then(r => r.json()).then(data => {
                 const div = document.getElementById('resultadoConsulta');
                 div.style.display = 'block';
                 if (data.error) { div.innerHTML = '<div class="alert alert-danger">❌ ' + data.error + '</div>'; return; }
-                const estadoColor = data.estado === 'confirmada' ? 'success' : data.estado === 'pendiente' ? 'warning' : data.estado === 'cancelada' ? 'danger' : 'info';
+                const ec = data.estado === 'confirmada' ? 'success' : data.estado === 'pendiente' ? 'warning' : 'danger';
                 div.innerHTML = `
-                    <div class="alert alert-${estadoColor}">
-                        <h5>🔑 Reserva: <strong>${data.localizador}</strong></h5><hr>
-                        <p><strong>👤 Cliente:</strong> ${data.cliente_nombre}</p>
-                        <p><strong>🏨 Habitación:</strong> ${data.habitacion}</p>
-                        <p><strong>📅 Check-in:</strong> ${data.fecha_entrada}</p>
-                        <p><strong>📅 Check-out:</strong> ${data.fecha_salida}</p>
-                        <p><strong>👥 Huéspedes:</strong> ${data.adultos} adultos, ${data.ninos} niños</p>
-                        <p><strong>💰 Total:</strong> $${data.total}</p>
-                        <p><strong>💳 Pago:</strong> ${data.metodo_pago || 'No especificado'}</p>
-                        <p><strong>📊 Estado:</strong> <span class="badge bg-${estadoColor}">${data.estado}</span></p>
-                        <p><small>📅 Reservado el: ${data.fecha_reserva}</small></p>
-                    </div>`;
-            }).catch(() => { 
-                document.getElementById('resultadoConsulta').style.display = 'block';
-                document.getElementById('resultadoConsulta').innerHTML = '<div class="alert alert-danger">❌ Error de conexión</div>';
+                    <div class="alert alert-${ec}"><h5>🔑 ${data.localizador}</h5><hr>
+                    <p><strong>👤</strong> ${data.cliente_nombre}</p>
+                    <p><strong>🏨</strong> ${data.habitacion}</p>
+                    <p><strong>📅</strong> ${data.fecha_entrada} → ${data.fecha_salida}</p>
+                    <p><strong>💰</strong> $${data.total} | <strong>📊</strong> ${data.estado}</p></div>`;
             });
         }
     </script>
