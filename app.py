@@ -155,8 +155,7 @@ def verificar_permiso(usuario, permiso_requerido):
     return permiso_requerido in permisos
 
 def cancelar_reservas_expiradas():
-    """Solo cancela reservas en estado 'reservado' que expiraron.
-    Las 'pago_pendiente' y 'confirmada' NUNCA se cancelan solas."""
+    """Solo cancela reservas en estado 'reservado' que expiraron."""
     ahora = datetime.utcnow()
     reservas_expiradas = Reserva.query.filter(
         Reserva.solo_reserva == True,
@@ -424,9 +423,6 @@ def crear_reserva():
         expiracion = datetime.utcnow() + timedelta(minutes=minutos_expiracion) if solo_reserva else None
         localizador = generar_localizador(hab.posada_id)
         
-        # FLUJO AEROLÍNEA:
-        # - Solo reserva → estado "reservado" (expira en X minutos)
-        # - Con pago → estado "pago_pendiente" (no expira, espera validación)
         estado_inicial = 'reservado' if solo_reserva else 'pago_pendiente'
         
         reserva = Reserva(
@@ -501,8 +497,9 @@ def editar_reserva(reserva_id):
             reserva.fecha_entrada = datetime.strptime(data['fecha_entrada'], '%Y-%m-%d').date()
         if 'fecha_salida' in data:
             reserva.fecha_salida = datetime.strptime(data['fecha_salida'], '%Y-%m-%d').date()
+        if 'datos_huespedes' in data:
+            reserva.datos_huespedes = json.dumps(data['datos_huespedes'])
         
-        # Si cambia a confirmada, quitar expiración
         if 'estado' in data and data['estado'] == 'confirmada':
             reserva.fecha_expiracion = None
             reserva.solo_reserva = False
@@ -599,17 +596,15 @@ def calendario_completo():
 @app.route('/api/reservas-pendientes')
 @login_required
 def reservas_pendientes():
+    """SOLO para Validar Pagos: muestra reservas en estado pago_pendiente"""
     cancelar_reservas_expiradas()
     posada_id = current_user.posada_id if current_user.posada_id else 1
-    # Mostrar reservado (esperando pago) y pago_pendiente (esperando validación)
     reservas = Reserva.query.filter_by(posada_id=posada_id).filter(
-        Reserva.estado.in_(['reservado', 'pago_pendiente'])
+        Reserva.estado == 'pago_pendiente'
     ).order_by(Reserva.fecha_reserva.desc()).all()
     resultado = []
     for r in reservas:
         hab = db.session.get(Habitacion, r.habitacion_id)
-        expiracion = (r.fecha_expiracion - timedelta(hours=4)).strftime('%d/%m/%Y %H:%M') if r.fecha_expiracion else None
-        fecha_aprob = (r.fecha_aprobacion - timedelta(hours=4)).strftime('%d/%m/%Y %H:%M') if r.fecha_aprobacion else None
         resultado.append({
             'id': r.id, 'localizador': r.localizador, 'cliente_nombre': r.cliente_nombre,
             'cliente_telefono': r.cliente_telefono or 'No registrado',
@@ -618,8 +613,10 @@ def reservas_pendientes():
             'fecha_entrada': str(r.fecha_entrada), 'fecha_salida': str(r.fecha_salida),
             'total': r.total, 'estado': r.estado, 'metodo_pago': r.metodo_pago or '-',
             'comprobante': r.comprobante, 'solo_reserva': r.solo_reserva,
-            'fecha_expiracion': expiracion, 'aprobado_por': r.aprobado_por,
-            'fecha_aprobacion': fecha_aprob, 'comentario_rechazo': r.comentario_rechazo,
+            'fecha_expiracion': None,
+            'aprobado_por': r.aprobado_por,
+            'fecha_aprobacion': None,
+            'comentario_rechazo': r.comentario_rechazo,
             'fecha_reserva': (r.fecha_reserva - timedelta(hours=4)).strftime('%d/%m/%Y %H:%M')
         })
     return jsonify(resultado)
@@ -627,6 +624,7 @@ def reservas_pendientes():
 @app.route('/api/todas-reservas')
 @login_required
 def todas_reservas():
+    """TODAS las reservas para la sección Reservas"""
     cancelar_reservas_expiradas()
     posada_id = current_user.posada_id if current_user.posada_id else 1
     reservas = Reserva.query.filter_by(posada_id=posada_id).order_by(Reserva.fecha_reserva.desc()).all()
@@ -635,10 +633,19 @@ def todas_reservas():
         hab = db.session.get(Habitacion, r.habitacion_id)
         expiracion = (r.fecha_expiracion - timedelta(hours=4)).strftime('%d/%m/%Y %H:%M') if r.fecha_expiracion else None
         fecha_aprob = (r.fecha_aprobacion - timedelta(hours=4)).strftime('%d/%m/%Y %H:%M') if r.fecha_aprobacion else None
+        
+        huespedes = []
+        try:
+            if r.datos_huespedes:
+                huespedes = json.loads(r.datos_huespedes)
+        except:
+            huespedes = []
+        
         resultado.append({
             'id': r.id, 'localizador': r.localizador, 'cliente_nombre': r.cliente_nombre,
             'cliente_telefono': r.cliente_telefono or 'No registrado',
             'cliente_email': r.cliente_email or 'No registrado',
+            'cliente_cedula': r.cliente_cedula or '',
             'habitacion_nombre': hab.nombre if hab else 'N/A', 'habitacion_id': r.habitacion_id,
             'fecha_entrada': str(r.fecha_entrada), 'fecha_salida': str(r.fecha_salida),
             'total': r.total, 'adultos': r.adultos, 'ninos': r.ninos,
@@ -646,6 +653,7 @@ def todas_reservas():
             'solo_reserva': r.solo_reserva, 'fecha_expiracion': expiracion,
             'aprobado_por': r.aprobado_por, 'fecha_aprobacion': fecha_aprob,
             'comentario_rechazo': r.comentario_rechazo,
+            'huespedes': huespedes,
             'fecha_reserva': (r.fecha_reserva - timedelta(hours=4)).strftime('%d/%m/%Y %H:%M')
         })
     return jsonify(resultado)
@@ -949,12 +957,10 @@ def validar_pago(reserva_id):
         reserva.aprobado_por = current_user.username
         reserva.fecha_aprobacion = datetime.utcnow()
         
-        # Si se confirma, quitar expiración (ya es permanente)
         if accion == 'confirmada':
             reserva.fecha_expiracion = None
             reserva.solo_reserva = False
         
-        # Si se rechaza, permitir comentario
         if accion == 'cancelada':
             reserva.comentario_rechazo = data.get('comentario', '')
             reserva.fecha_expiracion = None
