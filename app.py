@@ -410,7 +410,6 @@ def crear_reserva():
                 file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
                 comprobante = filename
         solo_reserva = metodo_pago == 'solo_reserva'
-        # Leer tiempo de expiración desde configuración
         minutos_expiracion = 40
         if solo_reserva:
             config = Configuracion.query.filter_by(posada_id=hab.posada_id, clave='tiempo_expiracion').first()
@@ -586,8 +585,9 @@ def calendario_completo():
 def reservas_pendientes():
     cancelar_reservas_expiradas()
     posada_id = current_user.posada_id if current_user.posada_id else 1
+    # Solo mostrar las que necesitan acción: pendiente y pago_reportado
     reservas = Reserva.query.filter_by(posada_id=posada_id).filter(
-        Reserva.estado.in_(['pago_reportado', 'pendiente', 'confirmada'])
+        Reserva.estado.in_(['pago_reportado', 'pendiente'])
     ).order_by(Reserva.fecha_reserva.desc()).all()
     resultado = []
     for r in reservas:
@@ -641,6 +641,7 @@ def reservas_historicas():
         return jsonify({'error': 'No autorizado'}), 403
     posada_id = current_user.posada_id if current_user.posada_id else 1
     hace_3_meses = datetime.utcnow() - timedelta(days=90)
+    # Mostrar TODAS las reservas de hace más de 3 meses (incluyendo canceladas)
     reservas = Reserva.query.filter(
         Reserva.posada_id == posada_id,
         Reserva.fecha_reserva < hace_3_meses
@@ -650,10 +651,13 @@ def reservas_historicas():
         hab = db.session.get(Habitacion, r.habitacion_id)
         resultado.append({
             'localizador': r.localizador, 'cliente_nombre': r.cliente_nombre,
+            'cliente_telefono': r.cliente_telefono or '-',
             'habitacion_nombre': hab.nombre if hab else 'N/A',
             'fecha_entrada': str(r.fecha_entrada), 'fecha_salida': str(r.fecha_salida),
             'total': r.total, 'estado': r.estado, 'metodo_pago': r.metodo_pago or '-',
-            'fecha_reserva': (r.fecha_reserva - timedelta(hours=4)).strftime('%d/%m/%Y %H:%M')
+            'comentario_rechazo': r.comentario_rechazo or '',
+            'fecha_reserva': (r.fecha_reserva - timedelta(hours=4)).strftime('%d/%m/%Y %H:%M'),
+            'fecha_aprobacion': (r.fecha_aprobacion - timedelta(hours=4)).strftime('%d/%m/%Y %H:%M') if r.fecha_aprobacion else None
         })
     return jsonify(resultado)
 
@@ -808,6 +812,63 @@ def crear_usuario():
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
+
+@app.route('/api/usuarios/<int:usuario_id>', methods=['PUT'])
+@login_required
+def editar_usuario(usuario_id):
+    """Editar un usuario existente"""
+    if current_user.rol not in ['super_admin', 'admin']:
+        return jsonify({'error': 'No autorizado'}), 403
+    
+    usuario = db.session.get(Usuario, usuario_id)
+    if not usuario:
+        return jsonify({'error': 'Usuario no encontrado'}), 404
+    
+    # Verificar que pertenece a la misma posada (o es super_admin)
+    if current_user.rol != 'super_admin' and usuario.posada_id != current_user.posada_id:
+        return jsonify({'error': 'No autorizado'}), 403
+    
+    try:
+        data = request.json
+        if 'permisos' in data:
+            usuario.permisos = json.dumps(data['permisos'])
+        if 'activo' in data:
+            usuario.activo = data['activo']
+        if 'rol' in data:
+            usuario.rol = data['rol']
+        if 'password' in data and data['password']:
+            usuario.password_hash = generate_password_hash(data['password'])
+        
+        db.session.commit()
+        registrar_log(current_user.id, 'editar_usuario', f'Editó usuario: {usuario.username}')
+        return jsonify({'message': 'Usuario actualizado correctamente'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/usuarios/<int:usuario_id>', methods=['DELETE'])
+@login_required
+def eliminar_usuario(usuario_id):
+    """Desactivar un usuario (no se elimina físicamente)"""
+    if current_user.rol not in ['super_admin', 'admin']:
+        return jsonify({'error': 'No autorizado'}), 403
+    
+    usuario = db.session.get(Usuario, usuario_id)
+    if not usuario:
+        return jsonify({'error': 'Usuario no encontrado'}), 404
+    
+    # No permitir eliminarse a sí mismo
+    if usuario.id == current_user.id:
+        return jsonify({'error': 'No puedes eliminarte a ti mismo'}), 400
+    
+    # Verificar que pertenece a la misma posada
+    if current_user.rol != 'super_admin' and usuario.posada_id != current_user.posada_id:
+        return jsonify({'error': 'No autorizado'}), 403
+    
+    usuario.activo = False
+    db.session.commit()
+    registrar_log(current_user.id, 'eliminar_usuario', f'Desactivó usuario: {usuario.username}')
+    return jsonify({'message': 'Usuario desactivado correctamente'})
 
 # ============================================================
 # GESTIÓN DE POSADAS (SOLO SUPER ADMIN)
