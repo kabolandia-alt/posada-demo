@@ -75,7 +75,7 @@ class Reserva(db.Model):
     adultos = db.Column(db.Integer, default=1)
     ninos = db.Column(db.Integer, default=0)
     total = db.Column(db.Float)
-    estado = db.Column(db.String(20), default='pendiente')
+    estado = db.Column(db.String(20), default='reservado')
     metodo_pago = db.Column(db.String(50))
     comprobante = db.Column(db.String(200))
     datos_huespedes = db.Column(db.Text)
@@ -155,16 +155,18 @@ def verificar_permiso(usuario, permiso_requerido):
     return permiso_requerido in permisos
 
 def cancelar_reservas_expiradas():
+    """Solo cancela reservas en estado 'reservado' que expiraron.
+    Las 'pago_pendiente' y 'confirmada' NUNCA se cancelan solas."""
     ahora = datetime.utcnow()
     reservas_expiradas = Reserva.query.filter(
         Reserva.solo_reserva == True,
-        Reserva.estado == 'pendiente',
+        Reserva.estado == 'reservado',
         Reserva.fecha_expiracion != None,
         Reserva.fecha_expiracion < ahora
     ).all()
     for r in reservas_expiradas:
         r.estado = 'cancelada'
-        r.comentario_rechazo = 'Cancelada automáticamente por tiempo límite'
+        r.comentario_rechazo = 'Cancelada automáticamente por no confirmar a tiempo'
     if reservas_expiradas:
         db.session.commit()
 
@@ -409,6 +411,7 @@ def crear_reserva():
                 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
                 file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
                 comprobante = filename
+        
         solo_reserva = metodo_pago == 'solo_reserva'
         minutos_expiracion = 40
         if solo_reserva:
@@ -420,6 +423,12 @@ def crear_reserva():
                     minutos_expiracion = 40
         expiracion = datetime.utcnow() + timedelta(minutes=minutos_expiracion) if solo_reserva else None
         localizador = generar_localizador(hab.posada_id)
+        
+        # FLUJO AEROLÍNEA:
+        # - Solo reserva → estado "reservado" (expira en X minutos)
+        # - Con pago → estado "pago_pendiente" (no expira, espera validación)
+        estado_inicial = 'reservado' if solo_reserva else 'pago_pendiente'
+        
         reserva = Reserva(
             localizador=localizador,
             cliente_nombre=datos.get('cliente_nombre', ''),
@@ -433,17 +442,18 @@ def crear_reserva():
             habitacion_id=hab.id, posada_id=hab.posada_id,
             metodo_pago=metodo_pago, comprobante=comprobante,
             datos_huespedes=datos.get('datos_huespedes', '[]'),
-            estado='pendiente' if solo_reserva else 'pago_reportado',
+            estado=estado_inicial,
             solo_reserva=solo_reserva, fecha_expiracion=expiracion
         )
         db.session.add(reserva)
         db.session.commit()
-        registrar_log(1, 'nueva_reserva', f'Nueva reserva: {localizador} - {hab.nombre}')
+        registrar_log(1, 'nueva_reserva', f'Nueva reserva: {localizador} - {hab.nombre} ({estado_inicial})')
         return jsonify({
             'message': 'Reserva creada exitosamente',
             'reserva_id': reserva.id,
             'localizador': reserva.localizador,
-            'total': round(total, 2)
+            'total': round(total, 2),
+            'estado': estado_inicial
         })
     except Exception as e:
         db.session.rollback()
@@ -491,6 +501,12 @@ def editar_reserva(reserva_id):
             reserva.fecha_entrada = datetime.strptime(data['fecha_entrada'], '%Y-%m-%d').date()
         if 'fecha_salida' in data:
             reserva.fecha_salida = datetime.strptime(data['fecha_salida'], '%Y-%m-%d').date()
+        
+        # Si cambia a confirmada, quitar expiración
+        if 'estado' in data and data['estado'] == 'confirmada':
+            reserva.fecha_expiracion = None
+            reserva.solo_reserva = False
+        
         db.session.commit()
         registrar_log(current_user.id, 'editar_reserva', f'Editó reserva {reserva.localizador}')
         return jsonify({'message': 'Reserva actualizada correctamente'})
@@ -585,9 +601,9 @@ def calendario_completo():
 def reservas_pendientes():
     cancelar_reservas_expiradas()
     posada_id = current_user.posada_id if current_user.posada_id else 1
-    # Solo mostrar las que necesitan acción: pendiente y pago_reportado
+    # Mostrar reservado (esperando pago) y pago_pendiente (esperando validación)
     reservas = Reserva.query.filter_by(posada_id=posada_id).filter(
-        Reserva.estado.in_(['pago_reportado', 'pendiente'])
+        Reserva.estado.in_(['reservado', 'pago_pendiente'])
     ).order_by(Reserva.fecha_reserva.desc()).all()
     resultado = []
     for r in reservas:
@@ -641,7 +657,6 @@ def reservas_historicas():
         return jsonify({'error': 'No autorizado'}), 403
     posada_id = current_user.posada_id if current_user.posada_id else 1
     hace_3_meses = datetime.utcnow() - timedelta(days=90)
-    # Mostrar TODAS las reservas de hace más de 3 meses (incluyendo canceladas)
     reservas = Reserva.query.filter(
         Reserva.posada_id == posada_id,
         Reserva.fecha_reserva < hace_3_meses
@@ -816,18 +831,13 @@ def crear_usuario():
 @app.route('/api/usuarios/<int:usuario_id>', methods=['PUT'])
 @login_required
 def editar_usuario(usuario_id):
-    """Editar un usuario existente"""
     if current_user.rol not in ['super_admin', 'admin']:
         return jsonify({'error': 'No autorizado'}), 403
-    
     usuario = db.session.get(Usuario, usuario_id)
     if not usuario:
         return jsonify({'error': 'Usuario no encontrado'}), 404
-    
-    # Verificar que pertenece a la misma posada (o es super_admin)
     if current_user.rol != 'super_admin' and usuario.posada_id != current_user.posada_id:
         return jsonify({'error': 'No autorizado'}), 403
-    
     try:
         data = request.json
         if 'permisos' in data:
@@ -838,7 +848,6 @@ def editar_usuario(usuario_id):
             usuario.rol = data['rol']
         if 'password' in data and data['password']:
             usuario.password_hash = generate_password_hash(data['password'])
-        
         db.session.commit()
         registrar_log(current_user.id, 'editar_usuario', f'Editó usuario: {usuario.username}')
         return jsonify({'message': 'Usuario actualizado correctamente'})
@@ -849,22 +858,15 @@ def editar_usuario(usuario_id):
 @app.route('/api/usuarios/<int:usuario_id>', methods=['DELETE'])
 @login_required
 def eliminar_usuario(usuario_id):
-    """Desactivar un usuario (no se elimina físicamente)"""
     if current_user.rol not in ['super_admin', 'admin']:
         return jsonify({'error': 'No autorizado'}), 403
-    
     usuario = db.session.get(Usuario, usuario_id)
     if not usuario:
         return jsonify({'error': 'Usuario no encontrado'}), 404
-    
-    # No permitir eliminarse a sí mismo
     if usuario.id == current_user.id:
         return jsonify({'error': 'No puedes eliminarte a ti mismo'}), 400
-    
-    # Verificar que pertenece a la misma posada
     if current_user.rol != 'super_admin' and usuario.posada_id != current_user.posada_id:
         return jsonify({'error': 'No autorizado'}), 403
-    
     usuario.activo = False
     db.session.commit()
     registrar_log(current_user.id, 'eliminar_usuario', f'Desactivó usuario: {usuario.username}')
