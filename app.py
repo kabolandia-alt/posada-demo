@@ -238,7 +238,14 @@ def logout_admin():
 @app.route('/api/verificar-rol')
 @login_required
 def verificar_rol():
-    return jsonify({'rol': current_user.rol, 'username': current_user.username})
+    posada = db.session.get(Posada, current_user.posada_id) if current_user.posada_id else None
+    return jsonify({
+        'rol': current_user.rol, 
+        'username': current_user.username,
+        'posada_id': current_user.posada_id,
+        'color_primario': posada.color_primario if posada else '#2C5F8A',
+        'color_secundario': posada.color_secundario if posada else '#51CF66'
+    })
 
 # ============================================================
 # API HABITACIONES
@@ -774,8 +781,8 @@ def crear_usuario():
             return jsonify({'error': f'No puedes crear usuarios con rol: {rol}'}), 403
         permisos_default = {
             'admin': ['ver_todo', 'editar_todo', 'crear_usuarios', 'eliminar', 'exportar'],
-            'manager': ['ver_reservas', 'editar_reservas', 'ver_ingresos', 'exportar'],
-            'recepcionista': ['ver_reservas', 'crear_reservas', 'check_in'],
+            'manager': ['ver_reservas', 'editar_reservas', 'ver_ingresos', 'exportar', 'validar_pagos', 'check_in'],
+            'recepcionista': ['ver_reservas', 'crear_reservas', 'check_in', 'validar_pagos'],
             'contador': ['ver_ingresos', 'exportar', 'ver_reservas']
         }
         permisos = data.get('permisos', permisos_default.get(rol, []))
@@ -1031,14 +1038,12 @@ def reiniciar_bd():
         db.drop_all()
         db.create_all()
         
-        # Super Admin
         db.session.add(Usuario(
             username='super_admin', password_hash=generate_password_hash('admin123'),
             rol='super_admin', posada_id=None,
             permisos=json.dumps(['ver_todo', 'crear_posadas', 'eliminar_todo', 'gestionar_usuarios'])
         ))
         
-        # Posada Demo
         posada = Posada(nombre='Demo-Posadas', direccion='Sistema de gestion de prueba')
         db.session.add(posada)
         db.session.commit()
