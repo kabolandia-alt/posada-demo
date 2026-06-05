@@ -26,6 +26,8 @@
         .datos-pago { background: #fff3cd; border-radius: 10px; padding: 15px; margin: 15px 0; }
         .localizador-destacado { background: linear-gradient(135deg, #2C5F8A, #1a3a5c); color: white; padding: 15px; border-radius: 15px; text-align: center; margin: 15px 0; font-size: 1.5em; font-family: monospace; letter-spacing: 3px; font-weight: bold; }
         .localizador-info { background: #e8f5e9; border-radius: 10px; padding: 10px; text-align: center; color: #2e7d32; font-weight: bold; margin-top: 10px; }
+        .btn-pagar { background: #28a745; color: white; border: none; padding: 15px; border-radius: 10px; font-weight: bold; font-size: 1.2em; width: 100%; }
+        .btn-pagar:hover { background: #218838; }
         .footer { text-align: center; color: white; padding: 20px; opacity: 0.7; font-size: 12px; }
         @media (max-width: 768px) { .header h1 { font-size: 2em; } .modal-content { padding: 15px; } }
     </style>
@@ -70,11 +72,7 @@
         <div class="modal-content">
             <div class="d-flex justify-content-between align-items-center mb-3"><h3>📝 Completar Reserva</h3><button class="btn-close" onclick="cerrarModal()"></button></div>
             <div id="resumenHabitacion" class="bg-light p-3 rounded mb-3"></div>
-            <div id="localizadorExito" style="display:none;">
-                <div class="localizador-destacado">🔑 <span id="localizadorCodigo"></span></div>
-                <div class="localizador-info">📌 GUARDA ESTE CÓDIGO - Lo necesitarás para gestionar tu reserva</div>
-                <hr>
-            </div>
+            <div id="localizadorExito" style="display:none;"></div>
             <form id="formReserva" enctype="multipart/form-data">
                 <h5 class="text-primary">👤 Datos del Titular</h5>
                 <div class="row g-2 mb-3">
@@ -211,15 +209,73 @@
             fetch('/api/reservas', { method: 'POST', body: formData }).then(r => r.json()).then(data => {
                 if (data.reserva_id) {
                     document.getElementById('formReserva').style.display = 'none';
-                    document.getElementById('localizadorCodigo').textContent = data.localizador;
+                    
+                    // Mostrar localizador con botón de PAGAR AHORA
+                    let html = `
+                        <div class="localizador-destacado">🔑 ${data.localizador}</div>
+                        <div class="localizador-info">📌 GUARDA ESTE CÓDIGO - Lo necesitarás para todo</div>
+                        <hr>
+                        <p class="text-center"><strong>Total: $${data.total}</strong></p>
+                        <p class="text-center"><span class="badge bg-warning">Estado: ${data.estado}</span></p>
+                    `;
+                    
+                    if (data.estado === 'reservado') {
+                        html += `
+                            <div class="text-center mt-3">
+                                <button class="btn-pagar" onclick="pagarAhora('${data.localizador}', ${data.total})">
+                                    💳 PAGAR AHORA
+                                </button>
+                                <small class="text-muted d-block mt-2">⏰ Tienes 40 minutos para pagar</small>
+                            </div>
+                        `;
+                    }
+                    
+                    document.getElementById('localizadorExito').innerHTML = html;
                     document.getElementById('localizadorExito').style.display = 'block';
-                    let msg = '✅ ¡Reserva creada exitosamente!\n\n🔑 TU LOCALIZADOR: ' + data.localizador + '\n\n📌 GUARDA ESTE CÓDIGO\n\nTotal: $' + data.total;
-                    if (metodo === 'solo_reserva') msg += '\n\n⏰ Tienes 40 minutos para confirmar el pago';
-                    alert(msg);
-                    setTimeout(() => { cerrarModal(); buscarDisponibilidad(); }, 5000);
+                    
+                    alert('✅ ¡Reserva creada!\n\n🔑 Localizador: ' + data.localizador + '\nTotal: $' + data.total);
                 } else { alert('❌ ' + (data.error || 'Error al crear la reserva')); }
             }).catch(() => alert('❌ Error de conexión'));
         });
+        
+        function pagarAhora(localizador, total) {
+            const metodo = prompt('Elige método de pago:\n\n1 - Zelle\n2 - Binance\n3 - Transferencia\n4 - Efectivo\n\nEscribe el número:', '1');
+            if (!metodo) return;
+            const metodos = { '1': 'zelle', '2': 'binance', '3': 'transferencia', '4': 'efectivo' };
+            const metodoPago = metodos[metodo] || 'zelle';
+            
+            const formData = new FormData();
+            formData.append('localizador', localizador);
+            formData.append('metodo_pago', metodoPago);
+            
+            if (metodoPago !== 'efectivo') {
+                const input = document.createElement('input');
+                input.type = 'file';
+                input.accept = 'image/*,.pdf';
+                input.onchange = function() {
+                    if (this.files[0]) {
+                        formData.append('comprobante', this.files[0]);
+                        enviarPago(formData);
+                    }
+                };
+                input.click();
+            } else {
+                enviarPago(formData);
+            }
+        }
+        
+        function enviarPago(formData) {
+            fetch('/api/pagar-reserva', { method: 'POST', body: formData })
+            .then(r => r.json()).then(d => {
+                if (d.message) {
+                    alert('✅ ¡Pago registrado!\n\nTu reserva está siendo validada.\nLocalizador: ' + d.localizador);
+                    cerrarModal();
+                    buscarDisponibilidad();
+                } else {
+                    alert('❌ ' + (d.error || 'Error al registrar pago'));
+                }
+            });
+        }
         
         document.getElementById('modalReserva').addEventListener('click', function(e) { if (e.target === this) cerrarModal(); });
         
@@ -230,7 +286,7 @@
                 const div = document.getElementById('resultadoConsulta');
                 div.style.display = 'block';
                 if (data.error) { div.innerHTML = '<div class="alert alert-danger">❌ ' + data.error + '</div>'; return; }
-                const estadoColor = data.estado === 'confirmada' ? 'success' : data.estado === 'pendiente' ? 'warning' : data.estado === 'cancelada' ? 'danger' : 'info';
+                const estadoColor = data.estado === 'confirmada' ? 'success' : data.estado === 'pago_pendiente' ? 'info' : data.estado === 'reservado' ? 'warning' : 'danger';
                 div.innerHTML = `
                     <div class="alert alert-${estadoColor}">
                         <h5>🔑 Reserva: <strong>${data.localizador}</strong></h5><hr>
