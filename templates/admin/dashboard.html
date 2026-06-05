@@ -17,10 +17,24 @@
         .stat-card h5 { font-size: 1.1em; }
         .stat-card small { font-size: 0.8em; opacity: 0.9; }
         .section-panel { background: white; border-radius: 15px; padding: 25px; box-shadow: 0 3px 10px rgba(0,0,0,0.05); margin-bottom: 20px; }
+        .habitacion-admin-card { border: 2px solid #eee; border-radius: 15px; padding: 15px; margin-bottom: 15px; background: white; }
+        .habitacion-admin-card img { width: 100%; height: 150px; object-fit: cover; border-radius: 10px; }
         .btn-accion { border-radius: 20px; padding: 8px 20px; font-weight: 600; }
-        .localizador-badge { background: var(--primario); color: white; padding: 3px 10px; border-radius: 15px; font-family: monospace; font-size: 14px; }
+        .calendario-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; font-size: 14px; }
+        .calendario-header { text-align: center; font-weight: bold; padding: 8px; background: var(--primario); color: white; border-radius: 5px; }
+        .calendario-dia { padding: 10px 5px; text-align: center; border-radius: 8px; min-height: 60px; }
+        .calendario-dia.vacio { background: #f9f9f9; color: #ccc; }
+        .calendario-dia.libre { background: #e8f5e9; color: #2e7d32; font-weight: 500; }
+        .calendario-dia.ocupado { background: #ffebee; color: #c62828; font-weight: 500; }
+        .pago-pendiente { border-left: 4px solid var(--amarillo); padding: 15px; background: white; border-radius: 10px; margin-bottom: 10px; }
         .footer { text-align: center; padding: 15px; margin-top: 20px; color: #888; font-size: 12px; border-top: 1px solid #eee; }
+        .localizador-badge { background: var(--primario); color: white; padding: 3px 10px; border-radius: 15px; font-family: monospace; font-size: 14px; }
         canvas { max-height: 300px; }
+        @media (max-width: 768px) {
+            .sidebar { min-height: auto; margin-bottom: 15px; border-radius: 10px; }
+            .stat-card h2 { font-size: 1.5em; }
+            .calendario-dia { min-height: 40px; padding: 5px; font-size: 12px; }
+        }
     </style>
 </head>
 <body>
@@ -28,7 +42,7 @@
         <button class="btn btn-primary d-md-none mb-3" type="button" data-bs-toggle="collapse" data-bs-target="#sidebarMenu">☰ Menú</button>
         <div class="row">
             <div class="col-md-2 sidebar collapse d-md-block" id="sidebarMenu">
-                <h4 class="text-center mb-4">🏨 <span id="sidebar-titulo">Admin Panel</span></h4>
+                <h4 class="text-center mb-4">🏨 Admin Panel</h4>
                 <nav class="nav flex-column">
                     <a class="nav-link active" href="#" onclick="cambiarSeccion('dashboard');return false;">📊 Dashboard</a>
                     <a class="nav-link" href="#" onclick="cambiarSeccion('calendario');return false;">📅 Calendario</a>
@@ -49,9 +63,16 @@
                 <div id="seccion-dashboard">
                     <h2 class="mb-4">📊 Dashboard de Indicadores</h2>
                     <div class="row mb-3">
-                        <div class="col-md-3"><select id="filtroMes" class="form-select" onchange="cargarDashboard()"><option value="1">Enero</option><option value="2">Febrero</option><option value="3">Marzo</option><option value="4">Abril</option><option value="5">Mayo</option><option value="6">Junio</option><option value="7">Julio</option><option value="8">Agosto</option><option value="9">Septiembre</option><option value="10">Octubre</option><option value="11">Noviembre</option><option value="12">Diciembre</option></select></div>
-                        <div class="col-md-3"><button class="btn btn-success me-2" onclick="exportarReservas()">📥 Exportar</button></div>
-                        <div class="col-md-3"><button class="btn btn-info" onclick="exportarIngresos()">💰 Ingresos</button></div>
+                        <div class="col-md-3">
+                            <select id="filtroMes" class="form-select" onchange="cargarDashboard()">
+                                <option value="1">Enero</option><option value="2">Febrero</option><option value="3">Marzo</option>
+                                <option value="4">Abril</option><option value="5">Mayo</option><option value="6">Junio</option>
+                                <option value="7">Julio</option><option value="8">Agosto</option><option value="9">Septiembre</option>
+                                <option value="10">Octubre</option><option value="11">Noviembre</option><option value="12">Diciembre</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3"><button class="btn btn-success me-2" onclick="exportarReservas()">📥 Exportar Reservas</button></div>
+                        <div class="col-md-3"><button class="btn btn-info" onclick="exportarIngresos()">💰 Exportar Ingresos</button></div>
                     </div>
                     <div class="row g-3">
                         <div class="col-6 col-md-3"><div class="card stat-card bg-success"><div class="card-body"><h6>HABITACIONES</h6><h2 id="total-habs">-</h2></div></div></div>
@@ -63,96 +84,244 @@
                         <div class="col-6 col-md-3"><div class="card stat-card bg-dark"><div class="card-body"><h6>📅 MEJOR TEMPORADA</h6><h5 id="mejor-temporada">-</h5><small id="mejor-temporada-reservas"></small></div></div></div>
                     </div>
                     <div class="row mt-4">
-                        <div class="col-md-6"><div class="section-panel"><h5>📊 Reservas por Habitación</h5><canvas id="graficoHabitaciones" height="250"></canvas></div></div>
+                        <div class="col-md-6"><div class="section-panel"><h5>📊 Reservas por Habitación (90 días)</h5><canvas id="graficoHabitaciones" height="250"></canvas></div></div>
                         <div class="col-md-6"><div class="section-panel"><h5>📈 Ocupación por Mes</h5><canvas id="graficoOcupacion" height="250"></canvas></div></div>
                     </div>
                     <div class="row mt-3">
                         <div class="col-md-6"><div class="section-panel"><h5>💰 Ingresos por Método de Pago</h5><canvas id="graficoPagos" height="250"></canvas></div></div>
-                        <div class="col-md-6"><div class="section-panel"><h5>📅 Check-ins por Día</h5><canvas id="graficoDiasSemana" height="250"></canvas></div></div>
+                        <div class="col-md-6"><div class="section-panel"><h5>📅 Check-ins por Día de la Semana</h5><canvas id="graficoDiasSemana" height="250"></canvas></div></div>
                     </div>
                 </div>
 
-                <div id="seccion-calendario" style="display:none;"><h2>📅 Calendario</h2><div id="calendario-content"></div></div>
-                <div id="seccion-habitaciones" style="display:none;"><h2>🛏️ Habitaciones</h2><div id="lista-habitaciones" class="row"></div></div>
-                <div id="seccion-tarifas" style="display:none;"><h2>💲 Tarifas</h2><div id="lista-tarifas"></div></div>
-                <div id="seccion-pagos" style="display:none;"><h2>💰 Pagos Pendientes</h2><div id="lista-pagos"></div></div>
-                <div id="seccion-reservas" style="display:none;"><h2>📋 Reservas</h2><div id="lista-reservas"></div></div>
-                <div id="seccion-historicos" style="display:none;"><h2>📦 Históricos</h2><div id="lista-historicos"></div></div>
-                <div id="seccion-usuarios" style="display:none;"><h2>👥 Usuarios</h2><div id="lista-usuarios"></div></div>
-                <div id="seccion-posadas" style="display:none;"><h2>🏨 Posadas</h2><div id="lista-posadas"></div></div>
-                <div id="seccion-configuracion" style="display:none;"><h2>⚙️ Configuración</h2><div id="config-content"></div></div>
+                <!-- CALENDARIO -->
+                <div id="seccion-calendario" style="display:none;">
+                    <h2 class="mb-3">📅 Calendario de Ocupación</h2>
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin:20px 0;">
+                        <button class="btn btn-primary" onclick="mesAnterior()">◀ Anterior</button>
+                        <h3 id="titulo-mes"></h3>
+                        <button class="btn btn-primary" onclick="mesSiguiente()">Siguiente ▶</button>
+                    </div>
+                    <div id="calendario-content" style="overflow-x:auto;"></div>
+                </div>
+
+                <!-- HABITACIONES -->
+                <div id="seccion-habitaciones" style="display:none;">
+                    <div class="d-flex justify-content-between align-items-center mb-3"><h2>🛏️ Gestión de Habitaciones</h2><button class="btn btn-success btn-accion" onclick="toggleFormHabitacion()">+ Nueva</button></div>
+                    <div id="form-nueva-habitacion" class="section-panel" style="display:none;">
+                        <h4>📝 Registrar Nueva Habitación</h4>
+                        <form id="formHabitacion" enctype="multipart/form-data">
+                            <div class="row g-3">
+                                <div class="col-md-6"><label class="form-label">Nombre *</label><input type="text" name="nombre" class="form-control" required></div>
+                                <div class="col-md-3"><label class="form-label">Tipo *</label><select name="tipo" class="form-select" required><option value="matrimonial">Matrimonial</option><option value="triple">Triple</option><option value="familiar">Familiar</option><option value="suite">Suite</option></select></div>
+                                <div class="col-md-3"><label class="form-label">Capacidad *</label><input type="number" name="capacidad" class="form-control" min="1" required></div>
+                                <div class="col-md-4"><label class="form-label">Camas</label><input type="text" name="camas" class="form-control" placeholder="Ej: 1 cama King"></div>
+                                <div class="col-md-4"><label class="form-label">Precio Base ($) *</label><input type="number" name="precio_base" class="form-control" step="0.01" required></div>
+                                <div class="col-md-4"><label class="form-label">📸 Imagen</label><input type="file" name="imagen" class="form-control" accept="image/*"></div>
+                                <div class="col-12"><label class="form-label">Descripción</label><textarea name="descripcion" class="form-control" rows="2"></textarea></div>
+                                <div class="col-12"><label class="form-label">Servicios</label><input type="text" name="servicios" class="form-control" value="wifi, ac, tv"></div>
+                                <div class="col-12"><button type="submit" class="btn btn-primary btn-accion">💾 Guardar</button> <button type="button" class="btn btn-secondary btn-accion" onclick="toggleFormHabitacion()">Cancelar</button></div>
+                            </div>
+                        </form>
+                    </div>
+                    <div id="lista-habitaciones" class="row"></div>
+                </div>
+
+                <!-- TARIFAS -->
+                <div id="seccion-tarifas" style="display:none;">
+                    <h2 class="mb-3">💲 Tarifas Especiales</h2>
+                    <div class="section-panel">
+                        <div class="alert alert-info">💡 <strong>Tipos:</strong> 📅 Rango Fechas | 📆 Días Semana | 🎯 Días Específicos<br>💲 Usa <strong>+</strong> para aumentar y <strong>-</strong> para descontar</div>
+                        <form id="formTarifa">
+                            <div class="row g-3 mb-3">
+                                <div class="col-md-3"><label class="form-label">Nombre *</label><input type="text" name="nombre" class="form-control" required></div>
+                                <div class="col-md-3"><label class="form-label">Tipo *</label><select name="tipo" id="tipoTarifa" class="form-select" required onchange="cambiarTipoTarifa()"><option value="rango_fechas">📅 Rango de Fechas</option><option value="dias_semana">📆 Días de la Semana</option><option value="dias_especificos">🎯 Días Específicos</option></select></div>
+                                <div class="col-md-3"><label class="form-label">💲 Ajuste/noche ($)</label><input type="number" name="precio_extra" class="form-control" step="0.01" value="20" required></div>
+                                <div class="col-md-3 d-flex align-items-end"><button type="submit" class="btn btn-warning btn-accion w-100">+ Agregar</button></div>
+                            </div>
+                            <div class="row g-3" id="divFechasContainer">
+                                <div class="col-md-3"><label class="form-label">📅 Desde</label><input type="date" name="fecha_inicio" id="fecha_inicio" class="form-control" required></div>
+                                <div class="col-md-3"><label class="form-label">📅 Hasta</label><input type="date" name="fecha_fin" id="fecha_fin" class="form-control" required></div>
+                            </div>
+                            <div class="row g-3" id="divDias" style="display:none;">
+                                <div class="col-12"><label class="form-label">🗓️ Días:</label>
+                                    <label class="me-3"><input type="checkbox" name="dia" value="0"> Lun</label>
+                                    <label class="me-3"><input type="checkbox" name="dia" value="1"> Mar</label>
+                                    <label class="me-3"><input type="checkbox" name="dia" value="2"> Mié</label>
+                                    <label class="me-3"><input type="checkbox" name="dia" value="3"> Jue</label>
+                                    <label class="me-3"><input type="checkbox" name="dia" value="4"> Vie</label>
+                                    <label class="me-3"><input type="checkbox" name="dia" value="5"> Sáb</label>
+                                    <label class="me-3"><input type="checkbox" name="dia" value="6"> Dom</label>
+                                </div>
+                            </div>
+                        </form>
+                        <hr><div id="lista-tarifas"></div>
+                    </div>
+                </div>
+
+                <!-- PAGOS -->
+                <div id="seccion-pagos" style="display:none;"><h2 class="mb-3">💰 Pagos Pendientes</h2><div id="lista-pagos"></div></div>
+
+                <!-- RESERVAS -->
+                <div id="seccion-reservas" style="display:none;"><h2 class="mb-3">📋 Todas las Reservas</h2><div id="lista-reservas"></div></div>
+
+                <!-- HISTÓRICOS -->
+                <div id="seccion-historicos" style="display:none;"><h2 class="mb-3">📦 Reservas Históricas (+3 meses)</h2><div id="lista-historicos"></div></div>
+
+                <!-- USUARIOS -->
+                <div id="seccion-usuarios" style="display:none;">
+                    <h2 class="mb-3">👥 Gestión de Usuarios</h2>
+                    <button class="btn btn-success mb-3" onclick="mostrarFormUsuario()">+ Nuevo Usuario</button>
+                    <div id="form-nuevo-usuario" class="section-panel" style="display:none;">
+                        <h4>📝 Crear Usuario</h4>
+                        <div class="row g-3">
+                            <div class="col-md-4"><label class="form-label">Usuario *</label><input type="text" id="nuevoUsername" class="form-control" required></div>
+                            <div class="col-md-4"><label class="form-label">Password *</label><input type="password" id="nuevoPassword" class="form-control" required></div>
+                            <div class="col-md-4"><label class="form-label">Rol *</label>
+                                <select id="nuevoRol" class="form-select">
+                                    <option value="recepcionista">Recepcionista</option>
+                                    <option value="contador">Contador</option>
+                                    <option value="manager">Manager</option>
+                                </select>
+                            </div>
+                            <div class="col-12"><label class="form-label">Permisos</label><br>
+                                <label class="me-3"><input type="checkbox" class="permiso-check" value="ver_reservas" checked> Ver Reservas</label>
+                                <label class="me-3"><input type="checkbox" class="permiso-check" value="crear_reservas"> Crear Reservas</label>
+                                <label class="me-3"><input type="checkbox" class="permiso-check" value="editar_reservas"> Editar Reservas</label>
+                                <label class="me-3"><input type="checkbox" class="permiso-check" value="ver_ingresos"> Ver Ingresos</label>
+                                <label class="me-3"><input type="checkbox" class="permiso-check" value="exportar"> Exportar</label>
+                                <label class="me-3"><input type="checkbox" class="permiso-check" value="check_in"> Check-in</label>
+                                <label class="me-3"><input type="checkbox" class="permiso-check" value="validar_pagos"> Validar Pagos</label>
+                            </div>
+                            <div class="col-12"><button class="btn btn-primary" onclick="crearUsuario()">💾 Crear Usuario</button></div>
+                        </div>
+                    </div>
+                    <div id="lista-usuarios"></div>
+                </div>
+
+                <!-- POSADAS (SOLO SUPER ADMIN) -->
+                <div id="seccion-posadas" style="display:none;">
+                    <h2 class="mb-3">🏨 Gestión de Posadas</h2>
+                    <button class="btn btn-success mb-3" onclick="mostrarFormPosada()">+ Nueva Posada</button>
+                    <div id="form-nueva-posada" class="section-panel" style="display:none;">
+                        <h4>📝 Registrar Nueva Posada</h4>
+                        <div class="row g-3">
+                            <div class="col-md-6"><label class="form-label">Nombre *</label><input type="text" id="nuevaPosadaNombre" class="form-control" required></div>
+                            <div class="col-md-6"><label class="form-label">Email *</label><input type="email" id="nuevaPosadaEmail" class="form-control" required></div>
+                            <div class="col-md-6"><label class="form-label">Dirección</label><input type="text" id="nuevaPosadaDireccion" class="form-control"></div>
+                            <div class="col-md-6"><label class="form-label">Teléfono</label><input type="text" id="nuevaPosadaTelefono" class="form-control"></div>
+                            <div class="col-md-3"><label class="form-label">Color Primario</label><input type="color" id="nuevaPosadaColor1" class="form-control" value="#2C5F8A"></div>
+                            <div class="col-md-3"><label class="form-label">Color Secundario</label><input type="color" id="nuevaPosadaColor2" class="form-control" value="#51CF66"></div>
+                            <div class="col-12"><button class="btn btn-primary" onclick="registrarPosada()">💾 Registrar Posada</button></div>
+                        </div>
+                    </div>
+                    <div id="lista-posadas"></div>
+                </div>
+
+                <!-- CONFIGURACIÓN -->
+                <div id="seccion-configuracion" style="display:none;">
+                    <h2 class="mb-3">⚙️ Configuración del Sistema</h2>
+                    <div class="section-panel">
+                        <h4>⏱️ Tiempo de Expiración (minutos)</h4>
+                        <div class="row mb-4">
+                            <div class="col-md-4"><input type="number" id="tiempoExpiracion" class="form-control" min="5" max="120" value="40"></div>
+                            <div class="col-md-4 d-flex align-items-end"><button class="btn btn-primary" onclick="guardarConfiguracion()">💾 Guardar</button></div>
+                        </div>
+                        <div class="alert alert-success mt-2" id="msgConfig" style="display:none;"></div>
+                        <h4>🏨 Datos de la Posada</h4>
+                        <div class="row g-3">
+                            <div class="col-md-6"><label class="form-label">Nombre</label><input type="text" id="posadaNombre" class="form-control"></div>
+                            <div class="col-md-6"><label class="form-label">Dirección</label><input type="text" id="posadaDireccion" class="form-control"></div>
+                            <div class="col-md-4"><label class="form-label">Teléfono</label><input type="text" id="posadaTelefono" class="form-control"></div>
+                            <div class="col-md-4"><label class="form-label">Email</label><input type="email" id="posadaEmail" class="form-control"></div>
+                            <div class="col-md-2"><label class="form-label">Color Primario</label><input type="color" id="posadaColorPrimario" class="form-control"></div>
+                            <div class="col-md-2"><label class="form-label">Color Secundario</label><input type="color" id="posadaColorSecundario" class="form-control"></div>
+                        </div>
+                        <button class="btn btn-primary mt-3" onclick="guardarDatosPosada()">💾 Guardar Datos</button>
+                    </div>
+                </div>
 
                 <div class="footer">© 2026 <strong>Nova Tech</strong> - Desarrollado por <strong>José García</strong></div>
             </div>
         </div>
     </div>
 
+    <!-- Modal Editar Reserva -->
     <div class="modal fade" id="modalEditarReserva" tabindex="-1">
-        <div class="modal-dialog modal-lg"><div class="modal-content"><div class="modal-header bg-primary text-white"><h5>✏️ Editar Reserva</h5><button class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
-        <div class="modal-body"><form id="formEditarReserva"><input type="hidden" id="edit-reserva-id">
-        <div class="row g-3">
-            <div class="col-md-6"><label>Nombre</label><input id="edit-cliente-nombre" class="form-control"></div>
-            <div class="col-md-6"><label>Teléfono</label><input id="edit-cliente-telefono" class="form-control"></div>
-            <div class="col-md-6"><label>Email</label><input id="edit-cliente-email" class="form-control"></div>
-            <div class="col-md-3"><label>Check-in</label><input type="date" id="edit-fecha-entrada" class="form-control"></div>
-            <div class="col-md-3"><label>Check-out</label><input type="date" id="edit-fecha-salida" class="form-control"></div>
-            <div class="col-md-3"><label>Adultos</label><input type="number" id="edit-adultos" class="form-control"></div>
-            <div class="col-md-3"><label>Niños</label><input type="number" id="edit-ninos" class="form-control"></div>
-            <div class="col-md-4"><label>Total $</label><input type="number" id="edit-total" class="form-control" step="0.01"></div>
-            <div class="col-md-4"><label>Estado</label><select id="edit-estado" class="form-select"><option value="pendiente">Pendiente</option><option value="pago_reportado">Pago Reportado</option><option value="confirmada">Confirmada</option><option value="cancelada">Cancelada</option></select></div>
-            <div class="col-md-4"><label>Pago</label><select id="edit-metodo-pago" class="form-select"><option value="zelle">Zelle</option><option value="binance">Binance</option><option value="transferencia">Transferencia</option><option value="efectivo">Efectivo</option><option value="solo_reserva">Solo Reservar</option></select></div>
-        </div></form></div>
-        <div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button class="btn btn-primary" onclick="guardarEdicionReserva()">💾 Guardar</button></div></div></div>
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white"><h5 class="modal-title">✏️ Editar Reserva</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+                <div class="modal-body">
+                    <form id="formEditarReserva"><input type="hidden" id="edit-reserva-id">
+                        <div class="row g-3">
+                            <div class="col-md-6"><label class="form-label">Nombre Cliente</label><input type="text" id="edit-cliente-nombre" class="form-control"></div>
+                            <div class="col-md-6"><label class="form-label">Teléfono</label><input type="text" id="edit-cliente-telefono" class="form-control"></div>
+                            <div class="col-md-6"><label class="form-label">Email</label><input type="email" id="edit-cliente-email" class="form-control"></div>
+                            <div class="col-md-3"><label class="form-label">Check-in</label><input type="date" id="edit-fecha-entrada" class="form-control"></div>
+                            <div class="col-md-3"><label class="form-label">Check-out</label><input type="date" id="edit-fecha-salida" class="form-control"></div>
+                            <div class="col-md-3"><label class="form-label">Adultos</label><input type="number" id="edit-adultos" class="form-control" min="1"></div>
+                            <div class="col-md-3"><label class="form-label">Niños</label><input type="number" id="edit-ninos" class="form-control" min="0"></div>
+                            <div class="col-md-4"><label class="form-label">Total ($)</label><input type="number" id="edit-total" class="form-control" step="0.01"></div>
+                            <div class="col-md-4"><label class="form-label">Estado</label><select id="edit-estado" class="form-select"><option value="pendiente">Pendiente</option><option value="pago_reportado">Pago Reportado</option><option value="confirmada">Confirmada</option><option value="cancelada">Cancelada</option></select></div>
+                            <div class="col-md-4"><label class="form-label">Método Pago</label><select id="edit-metodo-pago" class="form-select"><option value="zelle">Zelle</option><option value="binance">Binance</option><option value="transferencia">Transferencia</option><option value="efectivo">Efectivo</option><option value="solo_reserva">Solo Reservar</option></select></div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button type="button" class="btn btn-primary" onclick="guardarEdicionReserva()">💾 Guardar Cambios</button></div>
+            </div>
+        </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        var mesActual = new Date().getMonth(), añoActual = new Date().getFullYear();
         let graficoHabs, graficoOcup, graficoPagos, graficoDias;
-        
-        // Aplicar colores de la posada
+
+        // Aplicar colores de la posada y verificar rol
         fetch('/api/verificar-rol').then(r => r.json()).then(d => {
             if (d.rol === 'super_admin') {
                 window.location.href = '/super-admin';
                 return;
             }
-            if (d.color_primario) {
-                document.documentElement.style.setProperty('--primario', d.color_primario);
-            }
-            if (d.color_secundario) {
-                document.documentElement.style.setProperty('--verde', d.color_secundario);
-            }
-            // Mostrar secciones de super admin
-            if (d.rol === 'super_admin') {
-                document.querySelectorAll('.super-only').forEach(el => el.style.display = 'block');
-            }
+            if (d.color_primario) document.documentElement.style.setProperty('--primario', d.color_primario);
+            if (d.color_secundario) document.documentElement.style.setProperty('--verde', d.color_secundario);
         });
 
         function cambiarSeccion(s) {
             document.querySelectorAll('[id^="seccion-"]').forEach(e => e.style.display = 'none');
-            document.getElementById('seccion-' + s).style.display = 'block';
+            var el = document.getElementById('seccion-' + s); if (el) el.style.display = 'block';
             document.querySelectorAll('.sidebar .nav-link').forEach(l => l.classList.remove('active'));
-            event.target.classList.add('active');
+            document.querySelectorAll('.sidebar .nav-link').forEach(l => { if (l.textContent.toLowerCase().includes(s)) l.classList.add('active'); });
+            if (window.innerWidth < 768) { var sb = document.getElementById('sidebarMenu'); new bootstrap.Collapse(sb, {toggle: false}).hide(); }
             if (s === 'dashboard') cargarDashboard();
             if (s === 'calendario') cargarCalendario();
+            if (s === 'habitaciones') cargarHabitaciones();
+            if (s === 'tarifas') cargarTarifas();
+            if (s === 'pagos') cargarPagos();
             if (s === 'reservas') cargarReservas();
             if (s === 'historicos') cargarHistoricos();
-            if (s === 'pagos') cargarPagos();
             if (s === 'usuarios') cargarUsuarios();
             if (s === 'posadas') cargarPosadas();
+            if (s === 'configuracion') cargarConfiguracion();
         }
 
         function cargarDashboard() {
+            var mes = document.getElementById('filtroMes').value, año = new Date().getFullYear();
             fetch('/api/habitaciones').then(r => r.json()).then(d => { document.getElementById('total-habs').textContent = d.length; });
+            fetch('/api/calendario-completo').then(r => r.json()).then(d => {
+                var hoy = new Date().toISOString().split('T')[0], ocupadas = 0;
+                if (d.ocupacion_por_dia && d.ocupacion_por_dia[hoy]) ocupadas = d.ocupacion_por_dia[hoy].ocupadas;
+                document.getElementById('ocupadas-hoy').textContent = ocupadas;
+            });
             fetch('/api/reservas-pendientes').then(r => r.json()).then(d => { document.getElementById('pendientes-pago').textContent = d.length; });
-            fetch('/api/ingresos-mes').then(r => r.json()).then(d => { document.getElementById('ingresos-mes').textContent = '$' + d.total; });
+            fetch('/api/ingresos-mes?mes=' + mes + '&año=' + año).then(r => r.json()).then(d => { document.getElementById('ingresos-mes').textContent = '$' + d.total; });
             fetch('/api/indicadores-dashboard').then(r => r.json()).then(d => {
                 if (d.mas_vendida) {
                     document.getElementById('mas-vendida').textContent = d.mas_vendida.nombre;
-                    document.getElementById('mas-vendida-ingresos').textContent = d.mas_vendida.reservas + ' res. · $' + d.mas_vendida.ingresos;
+                    document.getElementById('mas-vendida-ingresos').textContent = d.mas_vendida.reservas + ' reservas · $' + d.mas_vendida.ingresos;
                 }
                 if (d.menos_vendida) {
                     document.getElementById('menos-vendida').textContent = d.menos_vendida.nombre;
-                    document.getElementById('menos-vendida-ingresos').textContent = d.menos_vendida.reservas + ' res. · $' + d.menos_vendida.ingresos;
+                    document.getElementById('menos-vendida-ingresos').textContent = d.menos_vendida.reservas + ' reservas · $' + d.menos_vendida.ingresos;
                 }
                 if (d.mejor_temporada) {
                     document.getElementById('mejor-temporada').textContent = d.mejor_temporada.mes;
@@ -164,62 +333,70 @@
 
         function cargarGraficos() {
             fetch('/api/graficos-dashboard').then(r => r.json()).then(d => {
+                const ctx1 = document.getElementById('graficoHabitaciones').getContext('2d');
                 if (graficoHabs) graficoHabs.destroy();
-                graficoHabs = new Chart(document.getElementById('graficoHabitaciones').getContext('2d'), {
-                    type: 'bar', data: { labels: d.habitaciones_nombres, datasets: [{ data: d.habitaciones_reservas, backgroundColor: ['#51CF66','#FFD43B','#FF6B6B','#2C5F8A','#11998e'] }] }
-                });
+                graficoHabs = new Chart(ctx1, { type: 'bar', data: { labels: d.habitaciones_nombres, datasets: [{ label: 'Reservas', data: d.habitaciones_reservas, backgroundColor: ['#51CF66','#FFD43B','#FF6B6B','#2C5F8A','#11998e'], borderRadius: 10 }] }, options: { responsive: true, plugins: { legend: { display: false } } } });
+                
+                const ctx2 = document.getElementById('graficoOcupacion').getContext('2d');
                 if (graficoOcup) graficoOcup.destroy();
-                graficoOcup = new Chart(document.getElementById('graficoOcupacion').getContext('2d'), {
-                    type: 'line', data: { labels: d.meses_nombres, datasets: [{ data: d.meses_reservas, borderColor: '#2C5F8A', fill: true, tension: 0.4 }] }
-                });
+                graficoOcup = new Chart(ctx2, { type: 'line', data: { labels: d.meses_nombres, datasets: [{ label: 'Reservas', data: d.meses_reservas, borderColor: '#2C5F8A', backgroundColor: 'rgba(44,95,138,0.1)', fill: true, tension: 0.4, pointRadius: 5 }] }, options: { responsive: true, plugins: { legend: { display: false } } } });
+                
+                const ctx3 = document.getElementById('graficoPagos').getContext('2d');
                 if (graficoPagos) graficoPagos.destroy();
-                graficoPagos = new Chart(document.getElementById('graficoPagos').getContext('2d'), {
-                    type: 'doughnut', data: { labels: d.pagos_nombres, datasets: [{ data: d.pagos_ingresos, backgroundColor: ['#51CF66','#FFD43B','#FF6B6B','#2C5F8A','#11998e'] }] }
-                });
+                graficoPagos = new Chart(ctx3, { type: 'doughnut', data: { labels: d.pagos_nombres, datasets: [{ data: d.pagos_ingresos, backgroundColor: ['#51CF66','#FFD43B','#FF6B6B','#2C5F8A','#11998e','#764ba2'], borderWidth: 3 }] }, options: { responsive: true, plugins: { legend: { position: 'bottom' } } } });
+                
+                const ctx4 = document.getElementById('graficoDiasSemana').getContext('2d');
                 if (graficoDias) graficoDias.destroy();
-                graficoDias = new Chart(document.getElementById('graficoDiasSemana').getContext('2d'), {
-                    type: 'bar', data: { labels: ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'], datasets: [{ data: d.dias_semana, backgroundColor: '#11998e' }] }
-                });
+                graficoDias = new Chart(ctx4, { type: 'bar', data: { labels: ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'], datasets: [{ label: 'Check-ins', data: d.dias_semana, backgroundColor: '#11998e', borderRadius: 10 }] }, options: { responsive: true, plugins: { legend: { display: false } } } });
             });
         }
 
-        function cargarReservas() {
-            fetch('/api/todas-reservas').then(r => r.json()).then(d => {
-                let html = '<div class="table-responsive"><table class="table table-striped"><thead><tr><th>Localizador</th><th>Cliente</th><th>Hab</th><th>In</th><th>Out</th><th>$</th><th>Estado</th><th>Expira</th><th>Acciones</th></tr></thead><tbody>';
-                d.forEach(r => {
-                    let ec = r.estado === 'confirmada' ? 'success' : r.estado === 'pendiente' ? 'warning' : 'danger';
-                    html += `<tr><td><span class="localizador-badge">${r.localizador}</span></td><td>${r.cliente_nombre}<br><small>📞 ${r.cliente_telefono}</small></td><td>${r.habitacion_nombre}</td><td>${r.fecha_entrada}</td><td>${r.fecha_salida}</td><td>$${r.total}</td><td><span class="badge bg-${ec}">${r.estado}</span></td><td><small>${r.fecha_expiracion||'-'}</small></td><td><button class="btn btn-warning btn-sm" onclick="abrirEditarReserva(${r.id})">✏️</button></td></tr>`;
-                });
-                html += '</tbody></table></div>';
-                document.getElementById('lista-reservas').innerHTML = html || '<div class="alert alert-info">No hay reservas</div>';
+        function exportarReservas() { window.open('/api/exportar-reservas?mes=' + document.getElementById('filtroMes').value + '&año=' + new Date().getFullYear(), '_blank'); }
+        function exportarIngresos() { window.open('/api/exportar-ingresos?mes=' + document.getElementById('filtroMes').value + '&año=' + new Date().getFullYear(), '_blank'); }
+        function mesAnterior() { mesActual--; if (mesActual < 0) { mesActual = 11; añoActual--; } cargarCalendario(); }
+        function mesSiguiente() { mesActual++; if (mesActual > 11) { mesActual = 0; añoActual++; } cargarCalendario(); }
+
+        function cargarCalendario() {
+            var nombres = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+            document.getElementById('titulo-mes').textContent = nombres[mesActual] + ' ' + añoActual;
+            fetch('/api/calendario-completo?mes=' + (mesActual + 1) + '&año=' + añoActual).then(r => r.json()).then(d => {
+                var html = '<div class="calendario-grid">';
+                ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'].forEach(dia => { html += '<div class="calendario-header">' + dia + '</div>'; });
+                for (var i = 0; i < d.primer_dia_semana; i++) html += '<div class="calendario-dia vacio"></div>';
+                for (var dia = 1; dia <= d.total_dias; dia++) {
+                    var fechaStr = añoActual + '-' + String(mesActual + 1).padStart(2, '0') + '-' + String(dia).padStart(2, '0');
+                    var o = d.ocupacion_por_dia[fechaStr];
+                    if (o) {
+                        if (o.ocupadas === 0) html += '<div class="calendario-dia libre"><span>' + dia + '</span><br><small>🟢 ' + o.disponibles + '/' + o.total + '</small></div>';
+                        else if (o.disponibles === 0) html += '<div class="calendario-dia ocupado"><span>' + dia + '</span><br><small>🔴 0/' + o.total + '</small></div>';
+                        else html += '<div class="calendario-dia" style="background:#fff3e0;color:#e65100;font-weight:500;"><span>' + dia + '</span><br><small>🟠 ' + o.disponibles + '/' + o.total + '</small></div>';
+                    } else html += '<div class="calendario-dia libre"><span>' + dia + '</span><br><small>🟢 -</small></div>';
+                }
+                html += '</div>'; document.getElementById('calendario-content').innerHTML = html;
             });
         }
 
-        function cargarHistoricos() {
-            fetch('/api/reservas-historicas').then(r => r.json()).then(d => {
-                let html = '<div class="table-responsive"><table class="table"><thead><tr><th>Localizador</th><th>Cliente</th><th>Hab</th><th>In</th><th>Out</th><th>$</th><th>Estado</th></tr></thead><tbody>';
-                d.forEach(r => { html += `<tr><td>${r.localizador}</td><td>${r.cliente_nombre}</td><td>${r.habitacion_nombre}</td><td>${r.fecha_entrada}</td><td>${r.fecha_salida}</td><td>$${r.total}</td><td>${r.estado}</td></tr>`; });
-                html += '</tbody></table></div>';
-                document.getElementById('lista-historicos').innerHTML = html || '<div class="alert alert-info">No hay históricos</div>';
+        function toggleFormHabitacion() { var f = document.getElementById('form-nueva-habitacion'); f.style.display = (f.style.display === 'none' ? 'block' : 'none'); }
+        function cargarHabitaciones() {
+            fetch('/api/habitaciones').then(r => r.json()).then(d => {
+                var html = ''; if (d.length === 0) html = '<div class="alert alert-info">No hay habitaciones.</div>';
+                else d.forEach(h => { var img = h.imagen ? '/static/uploads/' + h.imagen : 'https://via.placeholder.com/300x200?text=Sin+Imagen'; html += '<div class="col-md-6 col-lg-4"><div class="habitacion-admin-card"><img src="' + img + '"><div class="mt-2"><h5>' + h.nombre + ' <span class="badge bg-primary">' + h.tipo + '</span></h5><p><strong>$' + h.precio_base + '</strong>/noche · 👥 ' + h.capacidad + ' pers.</p><button class="btn btn-danger btn-sm" onclick="eliminarHabitacion(' + h.id + ')">🗑️</button></div></div></div>'; });
+                document.getElementById('lista-habitaciones').innerHTML = html;
             });
         }
+        document.getElementById('formHabitacion').addEventListener('submit', function(e) { e.preventDefault(); var fd = new FormData(this), s = fd.get('servicios'); if (s) fd.set('servicios', JSON.stringify(s.split(',').map(x => x.trim()))); fetch('/api/habitaciones', {method:'POST', body:fd}).then(r => r.json()).then(d => { if (d.id) { alert('✅ Creada!'); toggleFormHabitacion(); cargarHabitaciones(); } }); });
+        function eliminarHabitacion(id) { if (confirm('¿Eliminar?')) fetch('/api/habitaciones/' + id, {method:'DELETE'}).then(() => cargarHabitaciones()); }
+        
+        function cambiarTipoTarifa() { var t = document.getElementById('tipoTarifa').value; document.getElementById('divFechasContainer').style.display = t === 'rango_fechas' ? 'flex' : 'none'; document.getElementById('divDias').style.display = t !== 'rango_fechas' ? 'flex' : 'none'; }
+        document.getElementById('formTarifa').addEventListener('submit', function(e) { e.preventDefault(); var fd = new FormData(this), data = {}; fd.forEach((v,k) => data[k] = v); var dias = []; document.querySelectorAll('input[name="dia"]:checked').forEach(cb => dias.push(cb.value)); data.multiplicador = parseFloat(data.precio_extra); data.dias_aplicacion = dias.join(',') || null; fetch('/api/tarifas', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)}).then(() => { alert('✅ Tarifa creada!'); cargarTarifas(); }); });
+        function cargarTarifas() { fetch('/api/tarifas').then(r => r.json()).then(d => { var html = '<h5>Tarifas activas:</h5>'; if (d.length === 0) html += '<p class="text-muted">No hay tarifas.</p>'; else d.forEach(t => { var tipoTexto = t.tipo === 'rango_fechas' ? '📅 Rango' : '📆 Días'; var detalle = t.tipo === 'rango_fechas' ? (t.fecha_inicio + ' → ' + t.fecha_fin) : (t.dias_aplicacion ? t.dias_aplicacion.split(',').map(d => ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'][parseInt(d)]).join(',') : ''); var signo = t.multiplicador >= 0 ? '+' : ''; html += '<div class="d-flex justify-content-between p-2 bg-light rounded mb-2"><span><strong>' + t.nombre + '</strong> (' + signo + '$' + t.multiplicador + '/noche) <span class="badge bg-info">' + tipoTexto + '</span></span><span>' + detalle + ' <button class="btn btn-danger btn-sm" onclick="eliminarTarifa(' + t.id + ')">🗑️</button></span></div>'; }); document.getElementById('lista-tarifas').innerHTML = html; }); }
+        function eliminarTarifa(id) { if (confirm('¿Eliminar?')) fetch('/api/tarifas/' + id, {method:'DELETE'}).then(() => cargarTarifas()); }
 
-        function cargarPagos() {
-            fetch('/api/reservas-pendientes').then(r => r.json()).then(d => {
-                let html = '';
-                d.forEach(r => {
-                    html += `<div class="section-panel"><div class="row"><div class="col-md-6"><span class="localizador-badge">🔑 ${r.localizador}</span><br><strong>${r.cliente_nombre}</strong><p>📞 ${r.cliente_telefono}</p><small>📅 ${r.fecha_entrada} → ${r.fecha_salida}</small>${r.fecha_expiracion ? '<br><small class="text-danger">⏰ Expira: '+r.fecha_expiracion+'</small>' : ''}</div><div class="col-md-6 text-end"><h4>$${r.total}</h4><span class="badge bg-primary">${r.metodo_pago||'-'}</span><br><button class="btn btn-success btn-sm mt-1" onclick="validarPago(${r.id},'confirmada')">✅ Aprobar</button> <button class="btn btn-danger btn-sm mt-1" onclick="validarPago(${r.id},'cancelada')">❌ Rechazar</button></div></div></div>`;
-                });
-                document.getElementById('lista-pagos').innerHTML = html || '<div class="alert alert-info">✅ No hay pagos pendientes</div>';
-            });
-        }
+        function cargarPagos() { fetch('/api/reservas-pendientes').then(r => r.json()).then(d => { var html = ''; if (d.length === 0) html = '<div class="alert alert-info">✅ No hay pagos pendientes</div>'; else d.forEach(r => { html += '<div class="pago-pendiente"><div class="row"><div class="col-md-6"><span class="localizador-badge">🔑 ' + r.localizador + '</span><br><strong>' + r.cliente_nombre + '</strong>' + (r.solo_reserva ? ' <span class="badge bg-warning">⏱️</span>' : '') + '<p>📞 ' + r.cliente_telefono + '</p><small>📅 ' + r.fecha_entrada + ' → ' + r.fecha_salida + '</small>' + (r.fecha_expiracion ? '<br><small class="text-danger">⏰ Expira: ' + r.fecha_expiracion + '</small>' : '') + (r.comprobante ? '<br><a href="/static/uploads/' + r.comprobante + '" target="_blank" class="btn btn-sm btn-info">📎</a>' : '') + '</div><div class="col-md-6 text-end"><h4>$' + r.total + '</h4><span class="badge bg-primary">' + (r.metodo_pago || '-') + '</span><br><button class="btn btn-success btn-sm mt-1" onclick="validarPago(' + r.id + ',\'confirmada\')">✅</button> <button class="btn btn-danger btn-sm mt-1" onclick="validarPago(' + r.id + ',\'cancelada\')">❌</button> <button class="btn btn-warning btn-sm mt-1" onclick="abrirEditarReserva(' + r.id + ')">✏️</button></div></div></div>'; }); document.getElementById('lista-pagos').innerHTML = html; }); }
 
-        function validarPago(id, accion) {
-            let c = '';
-            if (accion === 'cancelada') { c = prompt('¿Motivo del rechazo?'); if (!c) return; }
-            fetch('/api/validar-pago/' + id, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({accion, comentario:c})})
-            .then(() => { cargarPagos(); cargarDashboard(); });
-        }
+        function cargarReservas() { fetch('/api/todas-reservas').then(r => r.json()).then(d => { var html = ''; if (d.length === 0) html = '<div class="alert alert-info">📋 No hay reservas</div>'; else { html += '<div class="table-responsive"><table class="table table-striped"><thead><tr><th>Localizador</th><th>Cliente</th><th>Hab</th><th>In</th><th>Out</th><th>$</th><th>Estado</th><th>Expira</th><th>Pago</th><th>Acciones</th></tr></thead><tbody>'; d.forEach(r => { var ec = r.estado === 'confirmada' ? 'success' : r.estado === 'pago_reportado' ? 'warning' : r.estado === 'pendiente' ? 'info' : 'danger'; html += '<tr><td><span class="localizador-badge">' + r.localizador + '</span>' + (r.solo_reserva ? ' ⏱️' : '') + '</td><td><strong>' + r.cliente_nombre + '</strong><br><small>📞 ' + r.cliente_telefono + '</small></td><td>' + (r.habitacion_nombre || '-') + '</td><td>' + r.fecha_entrada + '</td><td>' + r.fecha_salida + '</td><td>$' + r.total + '</td><td><span class="badge bg-' + ec + '">' + r.estado + '</span></td><td><small>' + (r.fecha_expiracion || '-') + '</small></td><td>' + (r.metodo_pago || '-') + '</td><td><button class="btn btn-warning btn-sm" onclick="abrirEditarReserva(' + r.id + ')">✏️ Editar</button></td></tr>'; }); html += '</tbody></table></div>'; } document.getElementById('lista-reservas').innerHTML = html; }); }
+
+        function cargarHistoricos() { fetch('/api/reservas-historicas').then(r => r.json()).then(d => { var html = ''; if (d.length === 0) html = '<div class="alert alert-info">📦 No hay reservas históricas</div>'; else { html += '<div class="table-responsive"><table class="table table-striped"><thead><tr><th>Localizador</th><th>Cliente</th><th>Hab</th><th>In</th><th>Out</th><th>$</th><th>Estado</th><th>Fecha Reserva</th></tr></thead><tbody>'; d.forEach(r => { var ec = r.estado === 'confirmada' ? 'success' : r.estado === 'cancelada' ? 'danger' : 'info'; html += '<tr><td><span class="localizador-badge">' + r.localizador + '</span></td><td>' + r.cliente_nombre + '</td><td>' + r.habitacion_nombre + '</td><td>' + r.fecha_entrada + '</td><td>' + r.fecha_salida + '</td><td>$' + r.total + '</td><td><span class="badge bg-' + ec + '">' + r.estado + '</span></td><td><small>' + r.fecha_reserva + '</small></td></tr>'; }); html += '</tbody></table></div>'; } document.getElementById('lista-historicos').innerHTML = html; }); }
 
         function abrirEditarReserva(id) {
             fetch('/api/todas-reservas').then(r => r.json()).then(reservas => {
@@ -240,6 +417,7 @@
         }
 
         function guardarEdicionReserva() {
+            const id = document.getElementById('edit-reserva-id').value;
             const data = {
                 cliente_nombre: document.getElementById('edit-cliente-nombre').value,
                 cliente_telefono: document.getElementById('edit-cliente-telefono').value,
@@ -252,36 +430,58 @@
                 estado: document.getElementById('edit-estado').value,
                 metodo_pago: document.getElementById('edit-metodo-pago').value
             };
-            fetch('/api/reservas/' + document.getElementById('edit-reserva-id').value, {
-                method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)
-            }).then(r => r.json()).then(d => {
-                alert(d.message || 'Error');
-                bootstrap.Modal.getInstance(document.getElementById('modalEditarReserva')).hide();
-                cargarReservas();
+            fetch('/api/reservas/' + id, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data) })
+            .then(r => r.json()).then(d => {
+                if (d.message) { alert('✅ Reserva actualizada'); bootstrap.Modal.getInstance(document.getElementById('modalEditarReserva')).hide(); cargarReservas(); cargarPagos(); }
+                else alert('❌ Error: ' + (d.error || 'Desconocido'));
             });
         }
 
-        function cargarUsuarios() {
-            fetch('/api/usuarios').then(r => r.json()).then(d => {
-                let html = '<div class="table-responsive"><table class="table"><thead><tr><th>Usuario</th><th>Rol</th><th>Permisos</th><th>Estado</th></tr></thead><tbody>';
-                d.forEach(u => { html += `<tr><td>${u.username}</td><td><span class="badge bg-info">${u.rol}</span></td><td><small>${u.permisos.join(', ')}</small></td><td>${u.activo?'🟢':'🔴'}</td></tr>`; });
-                html += '</tbody></table></div>';
-                document.getElementById('lista-usuarios').innerHTML = html || '<p>No hay usuarios</p>';
-            });
+        function validarPago(id, accion) { var c = ''; if (accion === 'cancelada') { c = prompt('¿Motivo?'); if (!c) return; } if (confirm('¿' + (accion === 'confirmada' ? 'Aprobar' : 'Rechazar') + '?')) fetch('/api/validar-pago/' + id, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({accion:accion, comentario:c})}).then(() => { cargarPagos(); cargarDashboard(); }); }
+
+        function mostrarFormUsuario() { var f = document.getElementById('form-nuevo-usuario'); f.style.display = f.style.display === 'none' ? 'block' : 'none'; }
+        function crearUsuario() {
+            const permisos = []; document.querySelectorAll('.permiso-check:checked').forEach(cb => permisos.push(cb.value));
+            const data = { username: document.getElementById('nuevoUsername').value, password: document.getElementById('nuevoPassword').value, rol: document.getElementById('nuevoRol').value, permisos: permisos };
+            fetch('/api/usuarios', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data) })
+            .then(r => r.json()).then(d => { if (d.message) { alert('✅ ' + d.message); mostrarFormUsuario(); cargarUsuarios(); } else alert('❌ ' + (d.error || 'Error')); });
+        }
+        function cargarUsuarios() { fetch('/api/usuarios').then(r => r.json()).then(d => { var html = '<h5>Usuarios:</h5>'; if (d.length === 0) html += '<p>No hay usuarios.</p>'; else { html += '<div class="table-responsive"><table class="table"><thead><tr><th>Usuario</th><th>Rol</th><th>Posada</th><th>Permisos</th><th>Estado</th></tr></thead><tbody>'; d.forEach(u => { html += '<tr><td><strong>' + u.username + '</strong></td><td><span class="badge bg-info">' + u.rol + '</span></td><td>#' + (u.posada_id || 'Global') + '</td><td><small>' + (u.permisos ? u.permisos.join(', ') : 'Todos') + '</small></td><td>' + (u.activo ? '🟢' : '🔴') + '</td></tr>'; }); html += '</tbody></table></div>'; } document.getElementById('lista-usuarios').innerHTML = html; }); }
+
+        function mostrarFormPosada() { var f = document.getElementById('form-nueva-posada'); f.style.display = f.style.display === 'none' ? 'block' : 'none'; }
+        function registrarPosada() {
+            const data = { nombre: document.getElementById('nuevaPosadaNombre').value, email: document.getElementById('nuevaPosadaEmail').value, direccion: document.getElementById('nuevaPosadaDireccion').value, telefono: document.getElementById('nuevaPosadaTelefono').value, color_primario: document.getElementById('nuevaPosadaColor1').value, color_secundario: document.getElementById('nuevaPosadaColor2').value };
+            fetch('/api/posadas', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data) })
+            .then(r => r.json()).then(d => { if (d.posada_id) { alert('✅ Posada creada!\nAdmin: ' + d.admin_usuario + '\nPassword: admin123'); mostrarFormPosada(); cargarPosadas(); } else alert('❌ ' + (d.error || 'Error')); });
+        }
+        function cargarPosadas() { fetch('/api/posadas').then(r => r.json()).then(d => { var html = '<h5>Posadas registradas:</h5>'; if (d.length === 0) html += '<p>No hay posadas.</p>'; else { html += '<div class="table-responsive"><table class="table"><thead><tr><th>ID</th><th>Nombre</th><th>Email</th><th>Habs</th><th>Reservas</th><th>Estado</th></tr></thead><tbody>'; d.forEach(p => { html += '<tr><td>' + p.id + '</td><td><strong>' + p.nombre + '</strong></td><td>' + p.email + '</td><td>' + p.habitaciones + '</td><td>' + p.reservas + '</td><td>' + (p.activo ? '🟢' : '🔴') + '</td></tr>'; }); html += '</tbody></table></div>'; } document.getElementById('lista-posadas').innerHTML = html; }); }
+
+        function cargarConfiguracion() { 
+            fetch('/api/configuracion').then(r => r.json()).then(d => { 
+                if (d.configuracion && d.configuracion.tiempo_expiracion) document.getElementById('tiempoExpiracion').value = d.configuracion.tiempo_expiracion; 
+                if (d.posada) {
+                    document.getElementById('posadaNombre').value = d.posada.nombre || '';
+                    document.getElementById('posadaDireccion').value = d.posada.direccion || '';
+                    document.getElementById('posadaTelefono').value = d.posada.telefono || '';
+                    document.getElementById('posadaEmail').value = d.posada.email || '';
+                    document.getElementById('posadaColorPrimario').value = d.posada.color_primario || '#2C5F8A';
+                    document.getElementById('posadaColorSecundario').value = d.posada.color_secundario || '#51CF66';
+                }
+            }); 
+        }
+        function guardarConfiguracion() { 
+            fetch('/api/configuracion', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ configuracion: {tiempo_expiracion: document.getElementById('tiempoExpiracion').value} })})
+            .then(() => { var m = document.getElementById('msgConfig'); m.style.display = 'block'; m.textContent = '✅ Guardado'; setTimeout(() => m.style.display = 'none', 2000); }); 
+        }
+        function guardarDatosPosada() {
+            fetch('/api/configuracion', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ posada: {
+                nombre: document.getElementById('posadaNombre').value, direccion: document.getElementById('posadaDireccion').value,
+                telefono: document.getElementById('posadaTelefono').value, email: document.getElementById('posadaEmail').value,
+                color_primario: document.getElementById('posadaColorPrimario').value, color_secundario: document.getElementById('posadaColorSecundario').value
+            }})}).then(() => { alert('✅ Datos guardados. Refresca para ver los cambios.'); location.reload(); });
         }
 
-        function cargarPosadas() {
-            fetch('/api/posadas').then(r => r.json()).then(d => {
-                let html = '<div class="table-responsive"><table class="table"><thead><tr><th>ID</th><th>Nombre</th><th>Email</th><th>Habs</th><th>Reservas</th></tr></thead><tbody>';
-                d.forEach(p => { html += `<tr><td>${p.id}</td><td>${p.nombre}</td><td>${p.email}</td><td>${p.habitaciones}</td><td>${p.reservas}</td></tr>`; });
-                html += '</tbody></table></div>';
-                document.getElementById('lista-posadas').innerHTML = html;
-            });
-        }
-
-        function exportarReservas() { window.open('/api/exportar-reservas', '_blank'); }
-        function exportarIngresos() { window.open('/api/exportar-ingresos', '_blank'); }
-
+        document.getElementById('filtroMes').value = new Date().getMonth() + 1;
         cargarDashboard();
     </script>
 </body>
